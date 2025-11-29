@@ -698,8 +698,8 @@
         // ==================== КОНФИГУРАЦИЯ ====================
         const CONFIG = {
             friction: 0.82,
-            mouseSpeed: 1.5,           // Понижена базовая скорость
-            mouseSprintSpeed: 2.8,     // Ускорение на Shift (заметный прирост: 1.86x)
+            mouseSpeed: 1.2,           // ⭐ v3.2: Понижена базовая скорость (было 1.5)
+            mouseSprintSpeed: 2.0,     // ⭐ v3.2: Понижена скорость спринта (было 2.8, дельта: 1.67x)
             mouseMaxHP: 100,
             catDamage: 3,
             catSpeed: 2.0,
@@ -892,7 +892,7 @@
                 const isSelected = gameState.selectedMouse === gameState.mice.indexOf(this);
 
                 // DEBUG: Логируем скорость и спринт для выбранной мыши
-                const isSprintActive = input.keys['Shift'] && this.stamina > 20;
+                const isSprintActive = input.keys['Shift'] && this.stamina > 10;  // ⭐ v3.2: Понижен порог с 20 на 10
                 const speed = isSprintActive ? CONFIG.mouseSprintSpeed : CONFIG.mouseSpeed;
 
                 if (isSelected && (Object.keys(input.keys).length > 0 || this.stamina !== 100)) {
