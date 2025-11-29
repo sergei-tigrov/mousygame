@@ -853,7 +853,10 @@
 
                 for (let row = minRow; row <= maxRow; row++) {
                     for (let col = minCol; col <= maxCol; col++) {
+                        // ⭐ v3.6.0: БЕЗОПАСНОСТЬ - проверяем границы перед доступом к массиву
+                        if (row < 0 || row >= this.rows || col < 0 || col >= this.cols) continue;
                         const cell = this.grid[row * this.cols + col];
+                        if (!cell) continue;  // Дополнительная защита
                         // Оптимизация: вместо spread оператора используем цикл (быстрее на больших массивах)
                         for (let i = 0; i < cell.mice.length; i++) result.mice.push(cell.mice[i]);
                         for (let i = 0; i < cell.cats.length; i++) result.cats.push(cell.cats[i]);
@@ -905,17 +908,19 @@
             }
 
             update() {
-                // Лимитируем активные частицы чтобы не тормозить на 6+ уровнях
+                // ⭐ v3.6.0: ОПТИМИЗАЦИЯ - избегаем O(n) операций shift() при удалении частиц
                 const maxActive = 150;
                 if (this.active.length > maxActive) {
-                    // Удаляем самые старые частицы
+                    // Вместо shift() (O(n)) используем slice (O(n) один раз вместо множественных)
                     const toRemove = this.active.length - maxActive;
                     for (let j = 0; j < toRemove; j++) {
-                        const p = this.active.shift();
-                        this.pool.push(p);
+                        this.pool.push(this.active[j]);  // Возвращаем в пул первые toRemove элементов
                     }
+                    // Удаляем первые toRemove элементов за один раз (O(n))
+                    this.active.splice(0, toRemove);
                 }
 
+                // Обновляем активные частицы в обратном порядке для безопасного удаления
                 for (let i = this.active.length - 1; i >= 0; i--) {
                     const p = this.active[i];
                     p.x += p.vx;
@@ -923,7 +928,11 @@
                     p.vy += 0.2;
                     p.life -= 0.05;
                     if (p.life <= 0) {
-                        this.pool.push(this.active.splice(i, 1)[0]);
+                        // Вместо splice (O(n)) удаляем прямо по индексу
+                        // (полагаемся на цикл в обратном порядке)
+                        this.pool.push(this.active[i]);
+                        this.active[i] = this.active[this.active.length - 1];  // Перемещаем последний элемент
+                        this.active.pop();  // Удаляем последний элемент (O(1))
                     }
                 }
             }
@@ -1047,7 +1056,19 @@
                 case 'gameOver':
                     if (DOM.gameOverScreen) DOM.gameOverScreen.classList.add('active');
                     if (DOM.scoreInputPanel) DOM.scoreInputPanel.style.display = 'block';
-                    if (DOM.playerName) DOM.playerName.focus();
+                    // ⭐ v3.6.0: Безопасный фокус - используем try-catch и defer через requestAnimationFrame
+                    if (DOM.playerName) {
+                        try {
+                            // Используем requestAnimationFrame чтобы фокус произошел после полного рендера
+                            requestAnimationFrame(() => {
+                                if (DOM.playerName && DOM.playerName !== document.activeElement) {
+                                    DOM.playerName.focus();
+                                }
+                            });
+                        } catch (e) {
+                            console.log('Focus ошибка (некритична):', e);
+                        }
+                    }
                     break;
                 case 'leaderboard':
                     if (DOM.leaderboardScreen) DOM.leaderboardScreen.style.display = 'block';
