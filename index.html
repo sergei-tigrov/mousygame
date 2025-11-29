@@ -878,10 +878,10 @@
                 this.burrowHealingTimer = 0;
             }
 
-            update(grid, gameState) {
-                // ⭐ v3.0: ПОЛУЧАЕМ input ИЗ getMergedInput() вместо параметра!
-                // Это позволяет читать из объединенного input всех систем
-                const input = getMergedInput();
+            update(grid, gameState, mergedInput) {
+                // ⭐ v3.2: ОПТИМИЗАЦИЯ - mergedInput передается из gameLoop (кэширован)
+                // Это исключает 8 ненужных вызовов getMergedInput() за кадр
+                const input = mergedInput || getMergedInput();  // Fallback для совместимости
 
                 if (!this.alive) return;
 
@@ -891,11 +891,6 @@
                 let isMoving = false;
                 const isSelected = gameState.selectedMouse === gameState.mice.indexOf(this);
                 const speed = (input.keys['Shift'] && this.stamina > 20) ? CONFIG.mouseSprintSpeed : CONFIG.mouseSpeed;
-
-                // DEBUG: Логируем если есть input для первой (выбранной) мыши
-                if (isSelected && Object.keys(input.keys).length > 0) {
-                    console.log('🐭 Mouse[' + gameState.mice.indexOf(this) + '].update() → input.keys:', input.keys);
-                }
 
                 if (input.keys['w'] || input.keys['ArrowUp']) { this.vy -= speed; isMoving = true; }
                 if (input.keys['s'] || input.keys['ArrowDown']) { this.vy += speed; isMoving = true; }
@@ -1506,6 +1501,16 @@
             audioContext: null,
             grid: null,
             fps: 60,
+            // ⭐ v3.2: Кэш DOM элементов (инициализируется один раз, используется 60х/сек)
+            domCache: {
+                miceCount: null,
+                miceHP: null,
+                cheeseCount: null,
+                totalCheese: null,
+                levelNumber: null,
+                stamina: null,
+                fps: null,
+            }
         };
 
         // ==================== INPUT SYSTEM v3.0 ====================
@@ -1554,14 +1559,8 @@
                 if (inputMobile.keys[key]) merged[key] = true;
             }
 
-            // DEBUG: Логируем если что-то активно
-            if (Object.keys(merged).length > 0) {
-                console.log('📊 getMergedInput() → merged:', merged);
-            }
-
-            // Обновляем старый input.keys для совместимости с остальным кодом
+            // ⭐ v3.2: Обновляем старый input.keys для совместимости с остальным кодом
             input.keys = merged;
-
             return input;  // Возвращаем в прежнем формате
         }
 
@@ -2029,29 +2028,21 @@
                     if (i === selectedIdx) mainHP = m.hp;
                 }
 
-                // Кэшируем элементы чтобы не искать их каждый раз
-                const miceCountEl = document.getElementById('miceCount');
-                const miceHPEl = document.getElementById('miceHP');
-                const cheeseCountEl = document.getElementById('cheeseCount');
-                const totalCheeseEl = document.getElementById('totalCheese');
-                const levelNumberEl = document.getElementById('levelNumber');
-                const staminaEl = document.getElementById('stamina');
-                const fpsEl = document.getElementById('fps');
-
-                // Обновляем только если элементы существуют
-                if (miceCountEl) miceCountEl.textContent = aliveCount;
-                if (miceHPEl) miceHPEl.textContent = Math.round(mainHP);
-                if (cheeseCountEl) cheeseCountEl.textContent = gameState.collectedCheese;
-                if (totalCheeseEl) totalCheeseEl.textContent = gameState.allCheese;
-                if (levelNumberEl) levelNumberEl.textContent = gameState.currentLevel;
+                // ⭐ v3.2: Используем кэшированные элементы (инициализированы в startGame)
+                const cache = gameState.domCache;
+                if (cache.miceCount) cache.miceCount.textContent = aliveCount;
+                if (cache.miceHP) cache.miceHP.textContent = Math.round(mainHP);
+                if (cache.cheeseCount) cache.cheeseCount.textContent = gameState.collectedCheese;
+                if (cache.totalCheese) cache.totalCheese.textContent = gameState.allCheese;
+                if (cache.levelNumber) cache.levelNumber.textContent = gameState.currentLevel;
 
                 // Безопасная работа со stamina
                 const selectedMouse = gameState.mice[selectedIdx];
-                if (staminaEl && selectedMouse) {
-                    staminaEl.textContent = Math.round(selectedMouse.stamina || 0);
+                if (cache.stamina && selectedMouse) {
+                    cache.stamina.textContent = Math.round(selectedMouse.stamina || 0);
                 }
 
-                if (fpsEl) fpsEl.textContent = gameState.fps || 0;
+                if (cache.fps) cache.fps.textContent = gameState.fps || 0;
             } catch (e) {
                 console.log('updateUI ошибка (некритична):', e);
                 // Не прерываем game loop из-за ошибки в UI
@@ -2104,11 +2095,14 @@
                 // ⭐ v2.9.0: Update gamepad input every frame
                 updateGamepadInput();
 
+                // ⭐ v3.2: ОПТИМИЗАЦИЯ - вычисляем merged input ОДН РАЗ в gameLoop
+                // (вместо вызова для каждой мыши 8 раз за кадр)
+                const mergedInput = getMergedInput();
+
                 // Обновления
-                // ⭐ v3.0: Mouse.update() теперь вызывается без input параметра
-                // (получает input из getMergedInput() внутри функции)
+                // ⭐ v3.2: Mouse.update() получает кэшированный mergedInput
                 for (let i = gameState.mice.length - 1; i >= 0; i--) {
-                    gameState.mice[i].update(gameState.grid, gameState);
+                    gameState.mice[i].update(gameState.grid, gameState, mergedInput);
                 }
                 for (let i = gameState.cats.length - 1; i >= 0; i--) {
                     gameState.cats[i].update(gameState);
@@ -2904,6 +2898,16 @@
                 gameState.score = 0;
                 gameState.isRunning = true;
                 gameState.isPaused = false;
+
+                // ⭐ v3.2: Инициализируем DOM кэш один раз (используется 60х/сек в updateUI)
+                gameState.domCache.miceCount = document.getElementById('miceCount');
+                gameState.domCache.miceHP = document.getElementById('miceHP');
+                gameState.domCache.cheeseCount = document.getElementById('cheeseCount');
+                gameState.domCache.totalCheese = document.getElementById('totalCheese');
+                gameState.domCache.levelNumber = document.getElementById('levelNumber');
+                gameState.domCache.stamina = document.getElementById('stamina');
+                gameState.domCache.fps = document.getElementById('fps');
+
                 console.log('🎮 Меню скрыто, состояние установлено');
 
                 // Звук кнопки (может не сработать на мобиле, но не критично)
