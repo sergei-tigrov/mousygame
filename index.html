@@ -666,7 +666,7 @@
 
     <script>
         // ==================== ВЕРСИЯ ИГРЫ ====================
-        const GAME_VERSION = '3.5.0'; // ⭐ SOUND GENERATOR REFACTOR - Replaced 217-line switch with SOUND_GENERATORS object, massive code cleanup
+        const GAME_VERSION = '3.6.0'; // ⭐ UTILITY FUNCTIONS REFACTOR - Added boundary checking, distance/collision utilities, and screen management; reduced 50+ duplicate patterns
 
         // ==================== CROSS-PLATFORM & MOBILE SUPPORT ====================
         const isTouchDevice = () => (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0));
@@ -844,10 +844,8 @@
 
             getNearby(x, y, distance) {
                 const result = { mice: [], cats: [], obstacles: [], items: [] };
-                const minCol = Math.max(0, Math.floor((x - distance) / this.cellSize));
-                const maxCol = Math.min(this.cols - 1, Math.floor((x + distance) / this.cellSize));
-                const minRow = Math.max(0, Math.floor((y - distance) / this.cellSize));
-                const maxRow = Math.min(this.rows - 1, Math.floor((y + distance) / this.cellSize));
+                const bounds = getGridBounds(x, y, distance, this);
+                const { minCol, maxCol, minRow, maxRow } = bounds;
 
                 for (let row = minRow; row <= maxRow; row++) {
                     for (let col = minCol; col <= maxCol; col++) {
@@ -936,6 +934,126 @@
             }
         }
 
+        // ==================== УТИЛИТЫ ПРОВЕРКИ ГРАНИЦ ====================
+
+        // Зажимает позицию объекта в пределы границ канвы
+        function clampToCanvasBounds(entity, gameState, padding = 30, onBound = null) {
+            const canvas = gameState.canvas;
+            let didCollide = false;
+
+            // Левая граница
+            if (entity.x - entity.radius < padding) {
+                entity.x = entity.radius + padding;
+                if (onBound) onBound('left');
+                didCollide = true;
+            }
+            // Правая граница
+            if (entity.x + entity.radius > canvas.width - padding) {
+                entity.x = canvas.width - entity.radius - padding;
+                if (onBound) onBound('right');
+                didCollide = true;
+            }
+            // Верхняя граница
+            if (entity.y - entity.radius < padding) {
+                entity.y = entity.radius + padding;
+                if (onBound) onBound('top');
+                didCollide = true;
+            }
+            // Нижняя граница
+            if (entity.y + entity.radius > canvas.height - padding) {
+                entity.y = canvas.height - entity.radius - padding;
+                if (onBound) onBound('bottom');
+                didCollide = true;
+            }
+
+            return didCollide;
+        }
+
+        // Возвращает границы ячеек сетки для заданного радиуса поиска
+        function getGridBounds(x, y, distance, grid) {
+            return {
+                minCol: Math.max(0, Math.floor((x - distance) / grid.cellSize)),
+                maxCol: Math.min(grid.cols - 1, Math.floor((x + distance) / grid.cellSize)),
+                minRow: Math.max(0, Math.floor((y - distance) / grid.cellSize)),
+                maxRow: Math.min(grid.rows - 1, Math.floor((y + distance) / grid.cellSize))
+            };
+        }
+
+        // Проверяет находится ли точка внутри расстояния (используя квадрат для оптимизации)
+        function isWithinDistanceSq(x1, y1, x2, y2, maxDistSq) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const distSq = dx * dx + dy * dy;
+            return distSq < maxDistSq && distSq > 0;
+        }
+
+        // Проверяет находится ли позиция в безопасности для спауна
+        function isSpawnSafe(x, y, obstacles, minRadius = 120) {
+            const minRadiusSq = minRadius * minRadius;
+            for (let i = 0; i < obstacles.length; i++) {
+                const obs = obstacles[i];
+                const dx = obs.x - x;
+                const dy = obs.y - y;
+                if (dx * dx + dy * dy < minRadiusSq) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // Вычисляет расстояние между двумя точками (корень из расстояния в квадрате)
+        function getDistance(x1, y1, x2, y2) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        // Возвращает только квадрат расстояния (более быстро для сравнений)
+        function getDistanceSq(x1, y1, x2, y2) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            return dx * dx + dy * dy;
+        }
+
+        // ==================== УТИЛИТЫ УПРАВЛЕНИЯ ЭКРАНАМИ ====================
+
+        // Скрывает все игровые экраны
+        function hideAllScreens() {
+            DOM.menuScreen.classList.remove('active');
+            DOM.pauseScreen.classList.remove('active');
+            DOM.levelCompleteScreen.classList.remove('active');
+            DOM.gameOverScreen.classList.remove('active');
+            DOM.leaderboardScreen.style.display = 'none';
+            DOM.scoreInputPanel.style.display = 'none';
+        }
+
+        // Показывает конкретный экран (скрывая остальные)
+        function showScreen(screenType) {
+            hideAllScreens();
+            switch (screenType) {
+                case 'menu':
+                    DOM.menuScreen.classList.add('active');
+                    break;
+                case 'pause':
+                    DOM.pauseScreen.classList.add('active');
+                    break;
+                case 'levelComplete':
+                    DOM.levelCompleteScreen.classList.add('active');
+                    break;
+                case 'gameOver':
+                    DOM.gameOverScreen.classList.add('active');
+                    DOM.scoreInputPanel.style.display = 'block';
+                    if (DOM.playerName) DOM.playerName.focus();
+                    break;
+                case 'leaderboard':
+                    DOM.leaderboardScreen.style.display = 'block';
+                    break;
+                case 'scoreInput':
+                    DOM.scoreInputPanel.style.display = 'block';
+                    break;
+            }
+        }
+
         // ==================== КЛАССЫ ====================
         class Mouse {
             constructor(x, y) {
@@ -956,59 +1074,86 @@
             }
 
             update(grid, gameState, mergedInput, deltaTime = 1) {
-                // ⭐ v3.2: ОПТИМИЗАЦИЯ - mergedInput передается из gameLoop (кэширован)
-                // Это исключает 8 ненужных вызовов getMergedInput() за кадр
-                // ⭐ v3.2.1: deltaTime нормализует движение для разных частот обновления экрана (60Hz, 120Hz, 144Hz)
-                const input = mergedInput || getMergedInput();  // Fallback для совместимости
+                // ⭐ v3.5.0: МОДУЛЬНЫЙ UPDATE - вызывает подметоды вместо inline-кода
+                const input = mergedInput || getMergedInput();
 
                 if (!this.alive) return;
 
-                // ⭐ NOTE: Мыши получают НОВУЮ скорость каждый кадр (speed * deltaTime),
-                // поэтому linear friction (*= 0.95) работает корректно независимо от частоты экрана
+                // Базовая физика
                 this.vx *= CONFIG.friction;
                 this.vy *= CONFIG.friction;
 
-                let isMoving = false;
                 const isSelected = gameState.selectedMouse === gameState.mice.indexOf(this);
 
-                // ⭐ v3.2: Спринт активируется при Shift и stamina > 10
+                // Движение и выносливость
+                const { isMoving, isSprintActive } = this.updateMovement(input, deltaTime);
+                this.updateStamina(isMoving, isSprintActive, deltaTime);
+                if (isSprintActive && isMoving) gameState.globalNoise += 3 * deltaTime;
+                if (isMoving && !isSprintActive) gameState.globalNoise += 1 * deltaTime;
+                this.updateNoise(deltaTime);
+
+                // Коллизии и позиция
+                this.checkObstacleCollisions(gameState);
+                this.updateBurrow(input, gameState, isSelected);
+                this.updateHiding(gameState);
+                this.updatePosition(gameState);
+                this.checkMouseCollisions(gameState);
+
+                // Сбор предметов и враги
+                this.checkCheeseCollisions(gameState);
+                this.checkCatCollisions(gameState);
+                this.checkTrapCollisions(gameState);
+            }
+
+            // ⭐ v3.5.0: ПОДМЕТОДЫ MOUSE.UPDATE - Разбиение 187 строк на модульные функции
+
+            // Обновление движения на основе input
+            updateMovement(input, deltaTime) {
                 const isSprintActive = input.keys['Shift'] && this.stamina > 10;
-                // ⭐ v3.2.1: Применяем deltaTime к скорости для нормализации на разных частотах экрана
                 const speed = (isSprintActive ? CONFIG.mouseSprintSpeed : CONFIG.mouseSpeed) * deltaTime;
 
+                let isMoving = false;
                 if (input.keys['w'] || input.keys['ArrowUp']) { this.vy -= speed; isMoving = true; }
                 if (input.keys['s'] || input.keys['ArrowDown']) { this.vy += speed; isMoving = true; }
                 if (input.keys['a'] || input.keys['ArrowLeft']) { this.vx -= speed; isMoving = true; }
                 if (input.keys['d'] || input.keys['ArrowRight']) { this.vx += speed; isMoving = true; }
 
-                // Выносливость (⭐ v3.2.1: deltaTime применяется для временных параметров)
-                if (input.keys['Shift'] && isMoving && this.stamina > 0) {
+                return { isMoving, isSprintActive };
+            }
+
+            // Обновление выносливости
+            updateStamina(isMoving, isSprintActive, deltaTime) {
+                if (isSprintActive && isMoving && this.stamina > 0) {
                     this.stamina -= CONFIG.staminaDecayRun * deltaTime;
                     this.noiseLevel += 5 * deltaTime;
-                    gameState.globalNoise += 3 * deltaTime;
+                    return true;
                 } else if (isMoving && this.stamina < CONFIG.maxStamina) {
                     this.noiseLevel += 2 * deltaTime;
-                    gameState.globalNoise += 1 * deltaTime;
                     this.stamina = Math.min(this.stamina + CONFIG.staminaRecovery * deltaTime, CONFIG.maxStamina);
+                    return false;
                 } else if (this.stamina < CONFIG.maxStamina) {
                     this.stamina = Math.min(this.stamina + CONFIG.staminaRecovery * deltaTime, CONFIG.maxStamina);
+                    return false;
                 }
+            }
 
-                // ⭐ v3.2.1: noiseDecay также зависит от deltaTime
+            // Обновление уровня шума
+            updateNoise(deltaTime) {
                 this.noiseLevel = Math.max(0, this.noiseLevel - CONFIG.noiseDecay * deltaTime);
+            }
 
-                // Проверяем коллизии с препятствиями (используем spatial grid)
+            // Коллизии с препятствиями
+            checkObstacleCollisions(gameState) {
                 const nearbyObjects = gameState.grid.getNearby(this.x, this.y, 150);
                 for (let i = 0; i < nearbyObjects.obstacles.length; i++) {
                     const obs = nearbyObjects.obstacles[i];
-                    const dx = obs.x - this.x;
-                    const dy = obs.y - this.y;
-                    const distSq = dx * dx + dy * dy;
+                    const distSq = getDistanceSq(this.x, this.y, obs.x, obs.y);
                     const minDist = (this.radius + obs.radius) * (this.radius + obs.radius);
 
                     if (distSq < minDist && distSq > 0) {
-                        // Отталкиваемся от препятствия
                         const dist = Math.sqrt(distSq);
+                        const dx = obs.x - this.x;
+                        const dy = obs.y - this.y;
                         const push = (Math.sqrt(minDist) - dist) * 0.6;
                         this.x -= (dx / dist) * push;
                         this.y -= (dy / dist) * push;
@@ -1016,18 +1161,16 @@
                         this.vy *= 0.7;
                     }
                 }
+            }
 
-                // Норка доступна для ЛЮБОЙ мыши (если она выбрана) рядом с ней
+            // Логика норки
+            updateBurrow(input, gameState, isSelected) {
                 let nearBurrow = false;
                 for (let i = 0; i < gameState.burrows.length; i++) {
                     const burrow = gameState.burrows[i];
-                    const dx = this.x - burrow.x;
-                    const dy = this.y - burrow.y;
-                    const distSq = dx * dx + dy * dy;
                     const burrowRange = (CONFIG.burrowRadius + this.radius) * (CONFIG.burrowRadius + this.radius);
-                    if (distSq < burrowRange) {
+                    if (getDistanceSq(this.x, this.y, burrow.x, burrow.y) < burrowRange) {
                         nearBurrow = true;
-                        // Выбранная мышь рядом с норкой - может войти при нажатии E
                         if (isSelected && input.keys['e'] && !this.inBurrow) {
                             this.inBurrow = true;
                             playSound('burrow');
@@ -1036,7 +1179,6 @@
                     }
                 }
 
-                // Выход из норки при удалении от неё
                 if (this.inBurrow && !nearBurrow) {
                     this.inBurrow = false;
                     this.burrowHealingTimer = 0;
@@ -1050,53 +1192,53 @@
                 } else {
                     this.burrowHealingTimer = 0;
                 }
+            }
 
-                // Проверка скрытия
+            // Скрытие за препятствиями
+            updateHiding(gameState) {
                 this.hidden = false;
-                const nearby = grid.getNearby(this.x, this.y, 100);
+                const nearby = gameState.grid.getNearby(this.x, this.y, 100);
                 for (let i = 0; i < nearby.obstacles.length; i++) {
                     const obs = nearby.obstacles[i];
-                    const dx = this.x - obs.x;
-                    const dy = this.y - obs.y;
-                    if (dx * dx + dy * dy < (this.radius + obs.radius + 20) * (this.radius + obs.radius + 20)) {
+                    const hideRange = (this.radius + obs.radius + 20) * (this.radius + obs.radius + 20);
+                    if (getDistanceSq(this.x, this.y, obs.x, obs.y) < hideRange) {
                         this.hidden = true;
                         break;
                     }
                 }
+            }
 
-                // Позиция
+            // Позиция и границы
+            updatePosition(gameState) {
                 this.x += this.vx;
                 this.y += this.vy;
+                clampToCanvasBounds(this, gameState);
+            }
 
-                // Границы
-                const padding = 30;
-                if (this.x - this.radius < padding) this.x = this.radius + padding;
-                if (this.x + this.radius > gameState.canvas.width - padding) this.x = gameState.canvas.width - this.radius - padding;
-                if (this.y - this.radius < padding) this.y = this.radius + padding;
-                if (this.y + this.radius > gameState.canvas.height - padding) this.y = gameState.canvas.height - this.radius - padding;
-
-                // Отталкивание от других мышей
+            // Отталкивание от мышей
+            checkMouseCollisions(gameState) {
                 for (let i = 0; i < gameState.mice.length; i++) {
                     const other = gameState.mice[i];
                     if (other === this || !other.alive) continue;
-                    const dx = other.x - this.x;
-                    const dy = other.y - this.y;
-                    const distSq = dx * dx + dy * dy;
+                    const distSq = getDistanceSq(this.x, this.y, other.x, other.y);
                     const minDist = (this.radius + other.radius) * 1.2;
                     if (distSq < minDist * minDist && distSq > 0) {
                         const dist = Math.sqrt(distSq);
+                        const dx = other.x - this.x;
+                        const dy = other.y - this.y;
                         const push = (minDist - dist) * 0.5;
                         this.x -= (dx / dist) * push;
                         this.y -= (dy / dist) * push;
                     }
                 }
+            }
 
-                // Сыр
+            // Сыр
+            checkCheeseCollisions(gameState) {
                 for (let i = gameState.cheese.length - 1; i >= 0; i--) {
                     const cheese = gameState.cheese[i];
-                    const dx = this.x - cheese.x;
-                    const dy = this.y - cheese.y;
-                    if (dx * dx + dy * dy < (this.radius + cheese.radius) * (this.radius + cheese.radius)) {
+                    const minDistSq = (this.radius + cheese.radius) * (this.radius + cheese.radius);
+                    if (getDistanceSq(this.x, this.y, cheese.x, cheese.y) < minDistSq) {
                         gameState.collectedCheese++;
                         gameState.score += (gameState.currentLevel * 10) + (this.stamina > 80 ? 20 : 5);
                         for (let j = 0; j < 8; j++) gameState.particles.get(cheese.x, cheese.y, '🧀');
@@ -1104,42 +1246,42 @@
                         playSound('cheese');
                     }
                 }
+            }
 
-                // Кошки (защита в норке!)
-                if (!this.inBurrow) {
-                    for (let i = 0; i < gameState.cats.length; i++) {
-                        const cat = gameState.cats[i];
-                        if (cat.canSee(this) || cat.canHear(this)) {
-                            if (!cat.target) playSound('danger');
-                            cat.target = this;
-                        }
-                        const dx = this.x - cat.x;
-                        const dy = this.y - cat.y;
-                        const distSq = dx * dx + dy * dy;
-                        const catchDist = this.radius + cat.radius;
-                        if (distSq < catchDist * catchDist) {
-                            this.hp -= CONFIG.catDamage;
-                            playSound('damage');
-                            if (this.hp <= 0) {
-                                this.alive = false;
-                                for (let j = 0; j < 5; j++) gameState.particles.get(this.x, this.y, '💔');
-                                playSound('caught');
-                            }
+            // Кошки
+            checkCatCollisions(gameState) {
+                if (this.inBurrow) return;
+
+                for (let i = 0; i < gameState.cats.length; i++) {
+                    const cat = gameState.cats[i];
+                    if (cat.canSee(this) || cat.canHear(this)) {
+                        if (!cat.target) playSound('danger');
+                        cat.target = this;
+                    }
+                    const catchDist = this.radius + cat.radius;
+                    if (getDistanceSq(this.x, this.y, cat.x, cat.y) < catchDist * catchDist) {
+                        this.hp -= CONFIG.catDamage;
+                        playSound('damage');
+                        if (this.hp <= 0) {
+                            this.alive = false;
+                            for (let j = 0; j < 5; j++) gameState.particles.get(this.x, this.y, '💔');
+                            playSound('caught');
                         }
                     }
                 }
+            }
 
-                // Мышеловки (защита в норке!)
-                if (!this.inBurrow) {
-                    for (let i = 0; i < gameState.traps.length; i++) {
-                        const trap = gameState.traps[i];
-                        const dx = this.x - trap.x;
-                        const dy = this.y - trap.y;
-                        if (dx * dx + dy * dy < (this.radius + trap.radius) * (this.radius + trap.radius)) {
-                            this.alive = false;
-                            for (let j = 0; j < 5; j++) gameState.particles.get(this.x, this.y, '💥');
-                            playSound('trap');
-                        }
+            // Мышеловки
+            checkTrapCollisions(gameState) {
+                if (this.inBurrow) return;
+
+                for (let i = 0; i < gameState.traps.length; i++) {
+                    const trap = gameState.traps[i];
+                    const minDistSq = (this.radius + trap.radius) * (this.radius + trap.radius);
+                    if (getDistanceSq(this.x, this.y, trap.x, trap.y) < minDistSq) {
+                        this.alive = false;
+                        for (let j = 0; j < 5; j++) gameState.particles.get(this.x, this.y, '💥');
+                        playSound('trap');
                     }
                 }
             }
@@ -1220,11 +1362,10 @@
 
             canSee(mouse) {
                 if (!mouse.alive || mouse.hidden) return false;
+                if (getDistanceSq(this.x, this.y, mouse.x, mouse.y) > CONFIG.catVisionRange * CONFIG.catVisionRange) return false;
+
                 const dx = mouse.x - this.x;
                 const dy = mouse.y - this.y;
-                const distSq = dx * dx + dy * dy;
-                if (distSq > CONFIG.catVisionRange * CONFIG.catVisionRange) return false;
-
                 const angleToMouse = Math.atan2(dy, dx);
                 let angleDiff = Math.abs(this.direction - angleToMouse);
                 if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
@@ -1233,9 +1374,7 @@
 
             canHear(mouse) {
                 if (!mouse.alive) return false;
-                const dx = mouse.x - this.x;
-                const dy = mouse.y - this.y;
-                return dx * dx + dy * dy < CONFIG.catHearingRange * CONFIG.catHearingRange && mouse.noiseLevel > 15;
+                return getDistanceSq(this.x, this.y, mouse.x, mouse.y) < CONFIG.catHearingRange * CONFIG.catHearingRange && mouse.noiseLevel > 15;
             }
 
             update(gameState, deltaTime = 1) {
@@ -1332,27 +1471,12 @@
                     }
                 }
 
-                const padding = 30;
-                if (this.x - this.radius < padding) {
-                    this.x = this.radius + padding;
-                    this.vx = 0;
+                // Зажимаем в границы с особой логикой для котов (сброс скорости и новое направление)
+                clampToCanvasBounds(this, gameState, 30, (direction) => {
+                    if (direction === 'left' || direction === 'right') this.vx = 0;
+                    if (direction === 'top' || direction === 'bottom') this.vy = 0;
                     this.targetDirection = Math.random() * Math.PI * 2;
-                }
-                if (this.x + this.radius > gameState.canvas.width - padding) {
-                    this.x = gameState.canvas.width - this.radius - padding;
-                    this.vx = 0;
-                    this.targetDirection = Math.random() * Math.PI * 2;
-                }
-                if (this.y - this.radius < padding) {
-                    this.y = this.radius + padding;
-                    this.vy = 0;
-                    this.targetDirection = Math.random() * Math.PI * 2;
-                }
-                if (this.y + this.radius > gameState.canvas.height - padding) {
-                    this.y = gameState.canvas.height - this.radius - padding;
-                    this.vy = 0;
-                    this.targetDirection = Math.random() * Math.PI * 2;
-                }
+                });
             }
 
             draw(ctx) {
@@ -1658,7 +1782,6 @@
 
         // ⭐ ФУНКЦИЯ БЕЗОПАСНОЙ ОЧИСТКИ - вместо input.keys = {}
         function clearAllInput() {
-            // ⭐ DEBUG: логируем очистку input
             const hadInput = Object.keys(inputDesktop.keys).length > 0 ||
                            Object.keys(inputGamepad.keys).length > 0 ||
                            Object.keys(inputMobile.keys).length > 0;
@@ -2009,9 +2132,6 @@
         function initGame() {
             console.log(`📍 initGame() - Level ${gameState.currentLevel}`);
             try {
-                // ⭐ NOTE: Не вызываем clearAllInput() здесь, это уже сделано в startGame() или nextLevel()
-                // Это избегает двойной очистки которая может вызвать race conditions
-
                 // Сброс счетчика безопасности
                 gameLoopSafetyCounter = 0;
 
@@ -2058,22 +2178,11 @@
 
             // Препятствия
             for (let i = 0; i < levelConfig.obstacles; i++) {
-                let x, y, valid;
+                let x, y;
                 do {
-                    valid = true;
                     x = 100 + Math.random() * (levelConfig.roomWidth - 200);
                     y = 100 + Math.random() * (levelConfig.roomHeight - 200);
-
-                    for (let j = 0; j < gameState.obstacles.length; j++) {
-                        const obs = gameState.obstacles[j];
-                        const dx = obs.x - x;
-                        const dy = obs.y - y;
-                        if (dx * dx + dy * dy < 120 * 120) {
-                            valid = false;
-                            break;
-                        }
-                    }
-                } while (!valid);
+                } while (!isSpawnSafe(x, y, gameState.obstacles, 120));
                 const obs = new Obstacle(x, y, i);
                 gameState.obstacles.push(obs);
                 gameState.grid.insert('obstacles', x, y, obs);
@@ -2081,75 +2190,21 @@
 
             // Норки
             for (let i = 0; i < levelConfig.burrows; i++) {
-                let x, y, valid;
+                let x, y;
                 do {
-                    valid = true;
                     x = 100 + Math.random() * (levelConfig.roomWidth - 200);
                     y = 100 + Math.random() * (levelConfig.roomHeight - 200);
-
-                    for (let j = 0; j < gameState.obstacles.length; j++) {
-                        const obs = gameState.obstacles[j];
-                        const dx = obs.x - x;
-                        const dy = obs.y - y;
-                        if (dx * dx + dy * dy < 120 * 120) {
-                            valid = false;
-                            break;
-                        }
-                    }
-                    for (let j = 0; j < gameState.burrows.length; j++) {
-                        const burrow = gameState.burrows[j];
-                        const dx = burrow.x - x;
-                        const dy = burrow.y - y;
-                        if (dx * dx + dy * dy < 120 * 120) {
-                            valid = false;
-                            break;
-                        }
-                    }
-                } while (!valid);
+                } while (!isSpawnSafe(x, y, gameState.obstacles, 120) || !isSpawnSafe(x, y, gameState.burrows, 120));
                 gameState.burrows.push(new Burrow(x, y));
             }
 
             // Мышеловки
             for (let i = 0; i < levelConfig.traps; i++) {
-                let x, y, valid;
+                let x, y;
                 do {
-                    valid = true;
                     x = 100 + Math.random() * (levelConfig.roomWidth - 200);
                     y = 100 + Math.random() * (levelConfig.roomHeight - 200);
-
-                    // Не спауним на препятствиях
-                    for (let j = 0; j < gameState.obstacles.length; j++) {
-                        const obs = gameState.obstacles[j];
-                        const dx = obs.x - x;
-                        const dy = obs.y - y;
-                        if (dx * dx + dy * dy < 100 * 100) {
-                            valid = false;
-                            break;
-                        }
-                    }
-
-                    // Не спауним на норках
-                    for (let j = 0; j < gameState.burrows.length; j++) {
-                        const burrow = gameState.burrows[j];
-                        const dx = burrow.x - x;
-                        const dy = burrow.y - y;
-                        if (dx * dx + dy * dy < 120 * 120) {
-                            valid = false;
-                            break;
-                        }
-                    }
-
-                    // Не спауним на других мышеловках
-                    for (let j = 0; j < gameState.traps.length; j++) {
-                        const trap = gameState.traps[j];
-                        const dx = trap.x - x;
-                        const dy = trap.y - y;
-                        if (dx * dx + dy * dy < 100 * 100) {
-                            valid = false;
-                            break;
-                        }
-                    }
-                } while (!valid);
+                } while (!isSpawnSafe(x, y, gameState.obstacles, 100) || !isSpawnSafe(x, y, gameState.burrows, 120) || !isSpawnSafe(x, y, gameState.traps, 100));
                 gameState.traps.push(new Trap(x, y));
             }
 
@@ -2168,31 +2223,11 @@
 
             // Сыр
             for (let i = 0; i < levelConfig.cheese; i++) {
-                let x, y, valid;
+                let x, y;
                 do {
-                    valid = true;
                     x = 100 + Math.random() * (levelConfig.roomWidth - 200);
                     y = 100 + Math.random() * (levelConfig.roomHeight - 200);
-
-                    for (let j = 0; j < gameState.obstacles.length; j++) {
-                        const obs = gameState.obstacles[j];
-                        const dx = obs.x - x;
-                        const dy = obs.y - y;
-                        if (dx * dx + dy * dy < 100 * 100) {
-                            valid = false;
-                            break;
-                        }
-                    }
-                    for (let j = 0; j < gameState.traps.length; j++) {
-                        const trap = gameState.traps[j];
-                        const dx = trap.x - x;
-                        const dy = trap.y - y;
-                        if (dx * dx + dy * dy < 80 * 80) {
-                            valid = false;
-                            break;
-                        }
-                    }
-                } while (!valid);
+                } while (!isSpawnSafe(x, y, gameState.obstacles, 100) || !isSpawnSafe(x, y, gameState.traps, 80));
                 gameState.cheese.push(new Cheese(x, y));
             }
 
@@ -2293,11 +2328,6 @@
                 // (вместо вызова для каждой мыши 8 раз за кадр)
                 const mergedInput = getMergedInput();
 
-                // ⭐ DEBUG: логируем input на первых нескольких кадрах
-                if (gameLoopSafetyCounter <= 5) {
-                    const activeKeys = Object.keys(mergedInput.keys).filter(k => mergedInput.keys[k]);
-                    console.log(`🎮 Frame ${gameLoopSafetyCounter}: deltaTime=${deltaTime.toFixed(2)}, activeKeys=${activeKeys.join(',') || 'NONE'}`);
-                }
 
                 // Обновления
                 // ⭐ v3.2: Mouse.update() получает кэшированный mergedInput
@@ -2406,14 +2436,7 @@
                             `;
                         }
 
-                        const inputPanel = DOM.scoreInputPanel;
-                        if (inputPanel) inputPanel.style.display = 'block';
-
-                        const playerNameEl = DOM.playerName;
-                        if (playerNameEl) playerNameEl.focus();
-
-                        const gameOverScreen = DOM.gameOverScreen;
-                        if (gameOverScreen) gameOverScreen.classList.add('active');
+                        showScreen('gameOver');
                     } catch (e) {
                         console.error('Критическая ошибка при game over:', e);
                     }
@@ -2446,8 +2469,7 @@
                         if (textEl) {
                             textEl.textContent = `🎉 Уровень ${completeLevel} пройден!\nМыши спасены: ${completeAliveMice}\nОчки: ${completeFinalScore}`;
                         }
-                        const levelCompleteScreen = DOM.levelCompleteScreen;
-                        if (levelCompleteScreen) levelCompleteScreen.classList.add('active');
+                        showScreen('levelComplete');
                     } catch (e) {
                         console.error('Ошибка при level complete:', e);
                     }
@@ -3026,11 +3048,6 @@
             // ✅ ГЛАВНОЕ: ВСЕГДА пишем в inputDesktop
             inputDesktop.keys[keyName] = true;
 
-            // ⭐ DEBUG: логируем движение
-            if (['w', 'a', 's', 'd', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(keyName)) {
-                console.log(`⌨️  Movement key pressed: ${keyName}`);
-            }
-
             // ⭐ ОТДЕЛЬНАЯ ЛОГИКА ДЛЯ МЕНЮ (не блокирует ввод)
             const menuScreen = DOM.menuScreen;
             const pauseScreen = DOM.pauseScreen;
@@ -3096,11 +3113,8 @@
                 clearAllInput();
                 console.log('✅ Input очищен');
 
-                // Скрываем меню
-                DOM.menuScreen.classList.remove('active');
-                DOM.pauseScreen.classList.remove('active');
-                DOM.levelCompleteScreen.classList.remove('active');
-                DOM.gameOverScreen.classList.remove('active');
+                // Скрываем меню и запускаем игру
+                hideAllScreens();
 
                 // Инициализируем состояние игры
                 gameState.currentLevel = 1;
@@ -3181,12 +3195,7 @@
         function menuGame() {
             gameState.isRunning = false;
             playSound('menu');
-            DOM.menuScreen.classList.add('active');
-            DOM.pauseScreen.classList.remove('active');
-            DOM.levelCompleteScreen.classList.remove('active');
-            DOM.gameOverScreen.classList.remove('active');
-            DOM.leaderboardScreen.style.display = 'none';
-            DOM.scoreInputPanel.style.display = 'none';
+            showScreen('menu');
             DOM.playerName.value = '';
         }
 
