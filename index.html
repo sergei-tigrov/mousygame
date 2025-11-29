@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="ru">
-<!-- 🎮 v3.2.2: SAFARI AUDIO FIX + AUDIO TOGGLE BUTTON - Updated 2025-11-30 -->
+<!-- 🎮 v3.2.3: DEEP SAFARI AUDIO FIX + BUTTON RELOCATED - Updated 2025-11-30 -->
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
@@ -68,18 +68,27 @@
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3); font-weight: bold;
             font-size: 12px;
         }
-        /* ⭐ v3.2.2: Audio toggle button */
+        /* ⭐ v3.2.2: Audio toggle button (bottom right) */
         .audio-toggle-btn {
-            position: absolute; right: 10px; top: 10px;
             background: linear-gradient(135deg, rgba(70, 130, 180, 0.9), rgba(100, 200, 255, 0.9));
-            border: 2px solid rgba(255, 255, 255, 0.8); border-radius: 50%;
-            width: 50px; height: 50px; padding: 0;
-            font-size: 28px; cursor: pointer;
-            display: flex; align-items: center; justify-content: center;
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            padding: 0;
+            margin-left: auto;
+            margin-right: 10px;
+            font-size: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             transition: all 0.2s ease;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-            pointer-events: auto; z-index: 105;
+            pointer-events: auto;
+            flex-shrink: 0;
             -webkit-tap-highlight-color: transparent;
+            -webkit-appearance: none;
             touch-action: manipulation;
         }
         .audio-toggle-btn:hover {
@@ -488,6 +497,7 @@
             }
         }
     </style>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%.3em font-size=75>🐭</text></svg>">
 </head>
 <body>
     <div class="container">
@@ -525,12 +535,12 @@
                 <div class="stat">⭐ <span id="levelNumber">1</span></div>
                 <div class="stat">⚡ <span id="stamina">100</span>%</div>
                 <div class="stat">FPS: <span id="fps">60</span></div>
-                <!-- ⭐ v3.2.2: Audio toggle button in top right -->
-                <button id="audioToggleBtn" class="audio-toggle-btn" onclick="toggleAudio()" title="Включить/выключить звук">🔊</button>
             </div>
             <div style="flex: 1;"></div>
-            <div class="ui-bottom" id="controls">
-                WASD/↑↓←→ движение | SHIFT спринт | ПРОБЕЛ пауза | TAB мышь | E норка
+            <div class="ui-bottom" id="controls" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>WASD/↑↓←→ движение | SHIFT спринт | ПРОБЕЛ пауза | TAB мышь | E норка</span>
+                <!-- ⭐ v3.2.2: Audio toggle button in bottom right -->
+                <button id="audioToggleBtn" class="audio-toggle-btn" onclick="toggleAudio()" title="Включить/выключить звук">🔊</button>
             </div>
         </div>
 
@@ -538,7 +548,7 @@
             <div class="menu-content">
                 <div class="title">🐭 МЫШИНЫЕ ПРЯТКИ 👀</div>
                 <p>Помоги мышкам спрятаться от кошек!</p>
-                <p style="font-size: 11px; opacity: 0.6; margin-bottom: 10px;">Версия <span id="versionDisplay">3.2.2</span></p>
+                <p style="font-size: 11px; opacity: 0.6; margin-bottom: 10px;">Версия <span id="versionDisplay">3.2.3</span></p>
                 <button class="button" onclick="startGame()">▶️ НАЧАТЬ ИГРУ</button>
                 <div class="hint" id="menuTip" style="
                     background: rgba(255, 255, 255, 0.1);
@@ -651,7 +661,7 @@
 
     <script>
         // ==================== ВЕРСИЯ ИГРЫ ====================
-        const GAME_VERSION = '3.2.2'; // ⭐ SAFARI AUDIO FIX + AUDIO TOGGLE - Proper AudioContext management & diagnostic logging
+        const GAME_VERSION = '3.2.3'; // ⭐ SAFARI AUDIO FIX + AUDIO TOGGLE - Proper AudioContext management & diagnostic logging
 
         // ==================== CROSS-PLATFORM & MOBILE SUPPORT ====================
         const isTouchDevice = () => (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0));
@@ -1614,94 +1624,81 @@
         let fpsFrames = 0, lastFpsTime = 0;
         let audioEnabled = true;  // ⭐ v3.2.2: Флаг для toggle звука
         let audioResumeListenersSetup = false;
+        let audioResumePromise = null;  // ⭐ v3.2.3: Помним Promise от resume() для Safari
 
         // ==================== ЗВУКИ ====================
+        // ⭐ v3.2.3: Инициализация аудио - возвращает Promise для Safari compatibility
         function initAudio(forceResume = false) {
             if (!gameState.audioContext) {
                 try {
-                    // Safari, Chrome, Firefox compatibility
                     const AudioContextClass = window.AudioContext || window.webkitAudioContext || window.mozAudioContext;
                     if (!AudioContextClass) {
-                        console.error('🔴 Web Audio API не поддерживается на этом браузере');
-                        return null;
+                        console.error('🔴 Web Audio API не поддерживается');
+                        return Promise.resolve(null);
                     }
                     gameState.audioContext = new AudioContextClass();
                     console.log(`✅ AudioContext создан (${gameState.audioContext.constructor.name}), state: ${gameState.audioContext.state}`);
 
-                    // ⭐ v3.2.2: КРИТИЧНО! Safari создает audioContext в suspended состоянии
-                    // Нужно сразу же пытаться resume если мы в user gesture context
                     if (gameState.audioContext.state === 'suspended') {
-                        console.log('⚠️ AudioContext suspended - пытаемся resume в user gesture context...');
-                        tryResumeAudioContext(gameState.audioContext);
+                        console.log('⚠️ AudioContext suspended - resuming...');
+                        audioResumePromise = gameState.audioContext.resume().then(() => {
+                            console.log(`✅ AudioContext resumed! State: ${gameState.audioContext.state}`);
+                            return gameState.audioContext;
+                        }).catch(e => {
+                            console.error(`❌ Resume failed: ${e.message}`);
+                            return gameState.audioContext;
+                        });
+                        return audioResumePromise;
                     }
 
-                    // Setup listeners для будущих suspensions (не нужны больше)
                     if (!audioResumeListenersSetup) {
                         setupAudioGestureListeners();
                     }
                 } catch (e) {
-                    console.error('🔴 Audio initialization failed:', e.message);
-                    return null;
+                    console.error('🔴 Audio init error:', e.message);
+                    return Promise.resolve(null);
                 }
             }
 
-            // ⭐ v3.2.2: Если явно просили resume (например из button toggle)
             if (forceResume && gameState.audioContext && gameState.audioContext.state === 'suspended') {
-                tryResumeAudioContext(gameState.audioContext);
+                audioResumePromise = gameState.audioContext.resume().catch(e => {
+                    console.error(`❌ Resume failed: ${e.message}`);
+                });
+                return audioResumePromise || Promise.resolve(gameState.audioContext);
             }
 
-            return gameState.audioContext;
+            return Promise.resolve(gameState.audioContext);
         }
 
-        // ⭐ v3.2.2: Пытаемся возобновить audioContext
-        function tryResumeAudioContext(ctx) {
-            if (!ctx) return;
-
-            const currentState = ctx.state;
-            console.log(`🔊 Attempting resume: current state = "${currentState}"`);
-
-            if (currentState !== 'suspended') {
-                console.log(`✅ AudioContext already in "${currentState}" state, no resume needed`);
-                return;
-            }
-
-            ctx.resume().then(() => {
-                console.log(`✅ AudioContext resume() promise resolved! New state: ${ctx.state}`);
-            }).catch(e => {
-                console.error(`❌ AudioContext.resume() rejected: ${e.message}`);
-            });
-        }
-
-        // ⭐ v3.2.2: Setup слушатели для возобновления audioContext если когда-то ещё suspended
+        // ⭐ v3.2.3: Setup слушатели для возобновления
         function setupAudioGestureListeners() {
             if (audioResumeListenersSetup) return;
             audioResumeListenersSetup = true;
 
             const resumeIfNeeded = () => {
                 if (gameState.audioContext && gameState.audioContext.state === 'suspended') {
-                    tryResumeAudioContext(gameState.audioContext);
+                    console.log('🔊 Resuming from gesture listener...');
+                    audioResumePromise = gameState.audioContext.resume().catch(e => {
+                        console.error(`❌ Resume failed: ${e.message}`);
+                    });
                 }
             };
 
-            // Слушаем на разные события для возобновления
             document.addEventListener('click', resumeIfNeeded);
             document.addEventListener('keydown', resumeIfNeeded);
             document.addEventListener('touchstart', resumeIfNeeded);
-
-            console.log('✅ Audio gesture listeners установлены');
+            console.log('✅ Audio listeners ready');
         }
 
-        // ⭐ v3.2.2: Toggle звука
+        // ⭐ v3.2.3: Toggle звука
         function toggleAudio() {
             audioEnabled = !audioEnabled;
             console.log(`🔊 Audio ${audioEnabled ? 'ENABLED' : 'DISABLED'}`);
 
-            // Если включили, пытаемся возобновить audioContext
-            if (audioEnabled) {
+            if (audioEnabled && gameState.audioContext && gameState.audioContext.state === 'suspended') {
                 initAudio(true);
             }
 
-            // Обновляем визуал кнопки
             const btn = document.getElementById('audioToggleBtn');
             if (btn) {
                 btn.textContent = audioEnabled ? '🔊' : '🔇';
@@ -1712,20 +1709,25 @@
         }
 
         function playSound(type) {
-            // ⭐ v3.2.2: Проверяем включен ли звук
-            if (!audioEnabled) {
-                console.log(`🔇 Sound disabled (${type})`);
-                return;
-            }
+            if (!audioEnabled) return;
 
-            const ctx = initAudio();
+            const ctx = gameState.audioContext;
             if (!ctx) {
-                console.error('🔴 AudioContext не доступен');
+                console.log(`🔊 AudioContext not ready yet (${type})`);
                 return;
             }
 
-            // ⭐ v3.2.2: Diagnostic logging
-            console.log(`🎵 Playing sound: ${type}, AudioContext state: ${ctx.state}, sampleRate: ${ctx.sampleRate}Hz`);
+            // ⭐ v3.2.3: Если context suspended, не пытаемся играть
+            // (это нормально для Safari - он возобновится на следующее user gesture)
+            if (ctx.state === 'suspended') {
+                console.log(`⚠️ AudioContext suspended, skipping sound (${type})`);
+                return;
+            }
+
+            if (ctx.state !== 'running') {
+                console.log(`⚠️ AudioContext state: ${ctx.state}, skipping sound (${type})`);
+                return;
+            }
 
             try {
                 switch (type) {
@@ -3019,16 +3021,14 @@
                 gameState.domCache.stamina = document.getElementById('stamina');
                 gameState.domCache.fps = document.getElementById('fps');
 
-                // ⭐ v3.2.1: Инициализируем AudioContext как можно раньше (на click START GAME)
-                // Это важно для Safari которому нужно явное resume на пользовательское действие
-                initAudio();
-
-                // Звук кнопки
-                try {
+                // ⭐ v3.2.3: Инициализируем AudioContext в user gesture context (click START GAME)
+                console.log('🔊 Initializing audio...');
+                initAudio().then(() => {
+                    console.log('🔊 Audio ready, trying sound...');
                     playSound('button');
-                } catch (audioError) {
-                    // Audio не работает - нормально, продолжаем игру
-                }
+                }).catch(e => {
+                    console.log('🔊 Audio init note:', e);
+                });
 
                 // ⭐ v2.6.0: Используем мобильный путь инициализации для мобильных устройств
                 const isMobile = isMobileDevice();
