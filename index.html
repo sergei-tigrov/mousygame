@@ -666,7 +666,7 @@
 
     <script>
         // ==================== ВЕРСИЯ ИГРЫ ====================
-        const GAME_VERSION = '3.2.4'; // ⭐ SAFARI AUDIO FIX + AUDIO TOGGLE - Proper AudioContext management & diagnostic logging
+        const GAME_VERSION = '3.2.5'; // ⭐ INPUT + PHYSICS FIX - Clean input on state transitions + exponential friction for deltaTime
 
         // ==================== CROSS-PLATFORM & MOBILE SUPPORT ====================
         const isTouchDevice = () => (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0));
@@ -926,8 +926,10 @@
 
                 if (!this.alive) return;
 
-                this.vx *= CONFIG.friction;
-                this.vy *= CONFIG.friction;
+                // ⭐ v3.2.5: Экспоненциальное затухание friction на разных частотах экрана
+                const frictionFactor = Math.pow(CONFIG.friction, deltaTime);
+                this.vx *= frictionFactor;
+                this.vy *= frictionFactor;
 
                 let isMoving = false;
                 const isSelected = gameState.selectedMouse === gameState.mice.indexOf(this);
@@ -1201,8 +1203,10 @@
 
             update(gameState, deltaTime = 1) {
                 // ⭐ v3.2.1: deltaTime нормализует движение кошек для разных частот экрана
-                this.vx *= CONFIG.friction;
-                this.vy *= CONFIG.friction;
+                // ⭐ v3.2.5: Экспоненциальное затухание friction на разных частотах экрана
+                const frictionFactor = Math.pow(CONFIG.friction, deltaTime);
+                this.vx *= frictionFactor;
+                this.vy *= frictionFactor;
                 this.alertLevel = Math.max(0, this.alertLevel - 1 * deltaTime);
 
                 let angleDiff = this.targetDirection - this.direction;
@@ -1614,6 +1618,18 @@
 
         // ⭐ ФУНКЦИЯ БЕЗОПАСНОЙ ОЧИСТКИ - вместо input.keys = {}
         function clearAllInput() {
+            // ⭐ DEBUG: логируем очистку input
+            const hadInput = Object.keys(inputDesktop.keys).length > 0 ||
+                           Object.keys(inputGamepad.keys).length > 0 ||
+                           Object.keys(inputMobile.keys).length > 0;
+            if (hadInput) {
+                console.log('🧹 clearAllInput called, clearing state:', {
+                    desktop: Object.keys(inputDesktop.keys).filter(k => inputDesktop.keys[k]),
+                    gamepad: Object.keys(inputGamepad.keys).filter(k => inputGamepad.keys[k]),
+                    mobile: Object.keys(inputMobile.keys).filter(k => inputMobile.keys[k])
+                });
+            }
+
             // Очищаем все ключи БЕЗ создания нового объекта (важно для ссылок)
             for (let key in inputDesktop.keys) {
                 inputDesktop.keys[key] = false;
@@ -2005,8 +2021,8 @@
         function initGame() {
             console.log(`📍 initGame() - Level ${gameState.currentLevel}`);
             try {
-                // ⭐ v3.2.4: Очищаем input перед инициализацией уровня
-                clearAllInput();
+                // ⭐ NOTE: Не вызываем clearAllInput() здесь, это уже сделано в startGame() или nextLevel()
+                // Это избегает двойной очистки которая может вызвать race conditions
 
                 // Сброс счетчика безопасности
                 gameLoopSafetyCounter = 0;
@@ -2288,6 +2304,12 @@
                 // ⭐ v3.2: ОПТИМИЗАЦИЯ - вычисляем merged input ОДН РАЗ в gameLoop
                 // (вместо вызова для каждой мыши 8 раз за кадр)
                 const mergedInput = getMergedInput();
+
+                // ⭐ DEBUG: логируем input на первых нескольких кадрах
+                if (gameLoopSafetyCounter <= 5) {
+                    const activeKeys = Object.keys(mergedInput.keys).filter(k => mergedInput.keys[k]);
+                    console.log(`🎮 Frame ${gameLoopSafetyCounter}: deltaTime=${deltaTime.toFixed(2)}, activeKeys=${activeKeys.join(',') || 'NONE'}`);
+                }
 
                 // Обновления
                 // ⭐ v3.2: Mouse.update() получает кэшированный mergedInput
@@ -3017,6 +3039,11 @@
 
             // ✅ ГЛАВНОЕ: ВСЕГДА пишем в inputDesktop
             inputDesktop.keys[keyName] = true;
+
+            // ⭐ DEBUG: логируем движение
+            if (['w', 'a', 's', 'd', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(keyName)) {
+                console.log(`⌨️  Movement key pressed: ${keyName}`);
+            }
 
             // ⭐ ОТДЕЛЬНАЯ ЛОГИКА ДЛЯ МЕНЮ (не блокирует ввод)
             const menuScreen = document.getElementById('menuScreen');
