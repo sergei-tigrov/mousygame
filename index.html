@@ -1703,6 +1703,55 @@
 
         // ⭐ v3.2.3: Toggle звука
         // ⭐ v3.2.3: Разблокировка Web Audio на iOS Safari (mute switch проблема)
+        // ⭐ v3.2.4: Простой тест Web Audio API для Safari
+        function testWebAudio() {
+            console.log('🔊 === TESTING WEB AUDIO API ===');
+            
+            try {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContextClass) {
+                    console.error('❌ Web Audio API not supported');
+                    return;
+                }
+                
+                const ctx = new AudioContextClass();
+                console.log(`✅ AudioContext created: ${ctx.state}`);
+                
+                // Простой тест
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                
+                osc.frequency.value = 440;
+                gain.gain.value = 0.3;
+                
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                
+                console.log(`✅ Oscillator frequency: ${osc.frequency.value}Hz`);
+                console.log(`✅ Gain value: ${gain.gain.value}`);
+                console.log(`✅ Ready to start`);
+                
+                // Попытка resume и play
+                if (ctx.state === 'suspended') {
+                    console.log('⚠️ Context suspended, trying resume...');
+                    ctx.resume().then(() => {
+                        console.log(`✅ Context resumed: ${ctx.state}`);
+                        osc.start(ctx.currentTime);
+                        osc.stop(ctx.currentTime + 0.5);
+                        console.log('🎵 Sound should be playing for 0.5s...');
+                    }).catch(e => {
+                        console.error(`❌ Resume error: ${e.message}`);
+                    });
+                } else {
+                    osc.start(ctx.currentTime);
+                    osc.stop(ctx.currentTime + 0.5);
+                    console.log('🎵 Sound should be playing for 0.5s...');
+                }
+            } catch (e) {
+                console.error(`❌ Error: ${e.message}`);
+            }
+        }
+
         function unmuteIOSSafari() {
             const silentAudio = document.getElementById('silentAudio');
             if (silentAudio) {
@@ -1743,7 +1792,6 @@
             }
 
             // ⭐ v3.2.3: Если context suspended, не пытаемся играть
-            // (это нормально для Safari - он возобновится на следующее user gesture)
             if (ctx.state === 'suspended') {
                 console.log(`⚠️ AudioContext suspended, skipping sound (${type})`);
                 return;
@@ -1753,6 +1801,9 @@
                 console.log(`⚠️ AudioContext state: ${ctx.state}, skipping sound (${type})`);
                 return;
             }
+
+            // ⭐ v3.2.4: Детальное логирование для Safari дебага
+            console.log(`🎵 [${type}] ctx.state=${ctx.state}, sampleRate=${ctx.sampleRate}, currentTime=${ctx.currentTime}`);
 
             try {
                 switch (type) {
