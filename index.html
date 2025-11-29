@@ -625,7 +625,7 @@
 
     <script>
         // ==================== ВЕРСИЯ ИГРЫ ====================
-        const GAME_VERSION = '2.9.0'; // NEW: Full PS4 Controller support with Gamepad API, vibration, and indicator
+        const GAME_VERSION = '2.9.1'; // NEW: Menu navigation with keyboard (Up/Down/Enter) and mouse hover
 
         // ==================== CROSS-PLATFORM & MOBILE SUPPORT ====================
         const isTouchDevice = () => (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0));
@@ -2631,7 +2631,148 @@
             updateControllerIndicator();
         });
 
+        // ==================== МЕНЮ НАВИГАЦИЯ (v2.9.1) ====================
+        // ⭐ НАВИГАЦИЯ ПО МЕНЮ С КЛАВИАТУРЫ И МЫШКИ
+
+        let menuState = {
+            currentScreen: 'menu',
+            selectedButtonIndex: 0,
+            visibleButtons: []
+        };
+
+        function getVisibleMenuButtons() {
+            // Получаем активный экран меню
+            const menuScreen = document.getElementById('menuScreen');
+            const pauseScreen = document.getElementById('pauseScreen');
+            const levelCompleteScreen = document.getElementById('levelCompleteScreen');
+            const gameOverScreen = document.getElementById('gameOverScreen');
+            const leaderboardScreen = document.getElementById('leaderboardScreen');
+
+            let activeScreen = null;
+            let screenName = '';
+
+            if (menuScreen && menuScreen.classList.contains('active')) {
+                activeScreen = menuScreen;
+                screenName = 'menu';
+            } else if (pauseScreen && pauseScreen.classList.contains('active')) {
+                activeScreen = pauseScreen;
+                screenName = 'pause';
+            } else if (levelCompleteScreen && levelCompleteScreen.classList.contains('active')) {
+                activeScreen = levelCompleteScreen;
+                screenName = 'levelComplete';
+            } else if (gameOverScreen && gameOverScreen.classList.contains('active')) {
+                activeScreen = gameOverScreen;
+                screenName = 'gameOver';
+            } else if (leaderboardScreen && leaderboardScreen.style.display !== 'none') {
+                activeScreen = leaderboardScreen;
+                screenName = 'leaderboard';
+            }
+
+            if (!activeScreen) return [];
+
+            menuState.currentScreen = screenName;
+            // Получаем все видимые кнопки в активном экране
+            const buttons = Array.from(activeScreen.querySelectorAll('.button')).filter(btn => {
+                const style = window.getComputedStyle(btn);
+                return style.display !== 'none' && style.visibility !== 'hidden';
+            });
+
+            return buttons;
+        }
+
+        function highlightMenuButton(index) {
+            const buttons = getVisibleMenuButtons();
+            if (buttons.length === 0) return;
+
+            // Нормализуем индекс
+            index = ((index % buttons.length) + buttons.length) % buttons.length;
+            menuState.selectedButtonIndex = index;
+
+            // Снимаем подсветку со всех кнопок
+            buttons.forEach((btn, i) => {
+                if (i === index) {
+                    btn.style.boxShadow = '0 0 20px rgba(255, 215, 61, 0.8), 0 4px 24px rgba(255, 255, 255, 0.6)';
+                    btn.style.transform = 'scale(1.08)';
+                    btn.focus();
+                } else {
+                    btn.style.boxShadow = '';
+                    btn.style.transform = '';
+                }
+            });
+        }
+
+        function initMenuNavigation() {
+            console.log('🎮 Инициализация навигации по меню');
+
+            // Подсвечиваем первую кнопку при открытии меню
+            setTimeout(() => {
+                const buttons = getVisibleMenuButtons();
+                if (buttons.length > 0) {
+                    highlightMenuButton(0);
+                }
+            }, 100);
+        }
+
+        // Добавляем обработчик mouseover для мышки
+        document.addEventListener('mouseover', (e) => {
+            if (e.target.classList && e.target.classList.contains('button')) {
+                const buttons = getVisibleMenuButtons();
+                const index = buttons.indexOf(e.target);
+                if (index >= 0) {
+                    highlightMenuButton(index);
+                }
+            }
+        });
+
+        // Обработка открытия меню
+        const originalClassToggle = Element.prototype.classList.toggle;
+        Element.prototype.classList.toggle = function(className) {
+            const result = originalClassToggle.call(this, className);
+            // Когда появляется меню, инициализируем навигацию
+            if ((this.id === 'menuScreen' || this.id === 'pauseScreen' ||
+                 this.id === 'levelCompleteScreen' || this.id === 'gameOverScreen') &&
+                className === 'active' && result) {
+                initMenuNavigation();
+            }
+            return result;
+        };
+
         document.addEventListener('keydown', (e) => {
+            // ⭐ v2.9.1: НАВИГАЦИЯ ПО МЕНЮ
+            // Проверяем, открыто ли меню
+            const menuOpen = document.getElementById('menuScreen')?.classList.contains('active') ||
+                           document.getElementById('pauseScreen')?.classList.contains('active') ||
+                           document.getElementById('levelCompleteScreen')?.classList.contains('active') ||
+                           document.getElementById('gameOverScreen')?.classList.contains('active') ||
+                           document.getElementById('leaderboardScreen')?.style.display !== 'none';
+
+            if (menuOpen) {
+                // Стрелка вверх - предыдущая кнопка
+                if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    highlightMenuButton(menuState.selectedButtonIndex - 1);
+                    return;
+                }
+
+                // Стрелка вниз - следующая кнопка
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    highlightMenuButton(menuState.selectedButtonIndex + 1);
+                    return;
+                }
+
+                // Enter - активировать кнопку
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const buttons = getVisibleMenuButtons();
+                    if (buttons.length > 0) {
+                        buttons[menuState.selectedButtonIndex].click();
+                        playSound('button');
+                    }
+                    return;
+                }
+            }
+
             // Сохраняем оригинальный ключ (Shift, Enter, Space) и lowercase версию для букв
             const keyName = e.key === ' ' ? 'Space' : (e.key === 'Enter' ? 'Enter' : (e.key === 'Shift' ? 'Shift' : e.key.toLowerCase()));
             input.keys[keyName] = true;
