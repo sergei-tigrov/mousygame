@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="ru">
-<!-- 🎮 v3.0.0: INPUT SYSTEM REFACTOR - Updated 2025-11-29 -->
+<!-- 🎮 v3.2.0: FULL REFACTOR + OPTIMIZATION - Updated 2025-11-30 -->
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
@@ -513,7 +513,7 @@
             <div class="menu-content">
                 <div class="title">🐭 МЫШИНЫЕ ПРЯТКИ 👀</div>
                 <p>Помоги мышкам спрятаться от кошек!</p>
-                <p style="font-size: 11px; opacity: 0.6; margin-bottom: 10px;">Версия <span id="versionDisplay">3.0.0</span></p>
+                <p style="font-size: 11px; opacity: 0.6; margin-bottom: 10px;">Версия <span id="versionDisplay">3.2.0</span></p>
                 <button class="button" onclick="startGame()">▶️ НАЧАТЬ ИГРУ</button>
                 <div class="hint" id="menuTip" style="
                     background: rgba(255, 255, 255, 0.1);
@@ -626,7 +626,7 @@
 
     <script>
         // ==================== ВЕРСИЯ ИГРЫ ====================
-        const GAME_VERSION = '3.0.0'; // ⭐ INPUT SYSTEM REFACTOR - Three isolated input channels, no conflicts
+        const GAME_VERSION = '3.2.0'; // ⭐ FULL OPTIMIZATION + BALANCE - Merged input cache, DOM cache, speed tuning
 
         // ==================== CROSS-PLATFORM & MOBILE SUPPORT ====================
         const isTouchDevice = () => (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0));
