@@ -625,7 +625,7 @@
 
     <script>
         // ==================== ВЕРСИЯ ИГРЫ ====================
-        const GAME_VERSION = '2.9.1'; // NEW: Menu navigation with keyboard (Up/Down/Enter) and mouse hover
+        const GAME_VERSION = '2.9.2'; // FIXED: Hybrid input - keyboard + controller + touch all work together
 
         // ==================== CROSS-PLATFORM & MOBILE SUPPORT ====================
         const isTouchDevice = () => (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0));
@@ -2526,6 +2526,7 @@
             }
 
             // ⭐ ЛЕВЫЙ СТИК - ДВИЖЕНИЕ (axes 0, 1)
+            // ⭐ v2.9.2: HYBRID INPUT - Объединяем контроллер + клавиатуру, не заменяем!
             const leftStickX = gamepad.axes[0];
             const leftStickY = gamepad.axes[1];
 
@@ -2533,42 +2534,47 @@
             const absX = Math.abs(leftStickX);
             const absY = Math.abs(leftStickY);
 
-            // Очищаем старые направления
-            input.keys['ArrowUp'] = false;
-            input.keys['ArrowDown'] = false;
-            input.keys['ArrowLeft'] = false;
-            input.keys['ArrowRight'] = false;
+            // ВАЖНО: Добавляем контроллер к управлению, НЕ заменяем клавиатуру!
+            // Сохраняем текущее состояние от клавиатуры
+            const keyboardUp = input.keys['ArrowUp'] || false;
+            const keyboardDown = input.keys['ArrowDown'] || false;
+            const keyboardLeft = input.keys['ArrowLeft'] || false;
+            const keyboardRight = input.keys['ArrowRight'] || false;
 
-            // Новые направления на основе стика
+            // Добавляем управление от контроллера ТОЛЬКО если стик движется достаточно
+            let controllerUp = false, controllerDown = false, controllerLeft = false, controllerRight = false;
+
             if (absY > gamepadState.deadZone) {
-                if (leftStickY < -0.3) input.keys['ArrowUp'] = true;
-                if (leftStickY > 0.3) input.keys['ArrowDown'] = true;
+                if (leftStickY < -0.3) controllerUp = true;
+                if (leftStickY > 0.3) controllerDown = true;
             }
             if (absX > gamepadState.deadZone) {
-                if (leftStickX < -0.3) input.keys['ArrowLeft'] = true;
-                if (leftStickX > 0.3) input.keys['ArrowRight'] = true;
+                if (leftStickX < -0.3) controllerLeft = true;
+                if (leftStickX > 0.3) controllerRight = true;
             }
 
-            // ⭐ КНОПКИ
+            // ОБЪЕДИНЯЕМ управление: если нажато на клавиатуре ИЛИ на контроллере, то true
+            input.keys['ArrowUp'] = keyboardUp || controllerUp;
+            input.keys['ArrowDown'] = keyboardDown || controllerDown;
+            input.keys['ArrowLeft'] = keyboardLeft || controllerLeft;
+            input.keys['ArrowRight'] = keyboardRight || controllerRight;
+
+            // ⭐ КНОПКИ - также объединяем управление
             // Крест (X) = button 0 -> ПАУЗА (Space)
-            if (gamepad.buttons[0] && gamepad.buttons[0].pressed) {
-                input.keys['Space'] = true;
-            } else {
-                input.keys['Space'] = false;
-            }
+            const controllerSpace = gamepad.buttons[0] && gamepad.buttons[0].pressed;
+            input.keys['Space'] = input.keys['Space'] || controllerSpace;
 
             // Кружок (O) = button 1 -> НОРКА (E)
-            if (gamepad.buttons[1] && gamepad.buttons[1].pressed) {
-                input.keys['e'] = true;
-            } else {
-                input.keys['e'] = false;
-            }
+            const controllerE = gamepad.buttons[1] && gamepad.buttons[1].pressed;
+            input.keys['e'] = input.keys['e'] || controllerE;
 
             // Треугольник = button 2 -> ПЕРЕКЛЮЧИТЬ МЫШЬ (Tab)
-            input.keys['Tab'] = gamepad.buttons[2] && gamepad.buttons[2].pressed;
+            const controllerTab = gamepad.buttons[2] && gamepad.buttons[2].pressed;
+            input.keys['Tab'] = input.keys['Tab'] || controllerTab;
 
             // Квадрат = button 3 -> СПРИНТ (Shift)
-            input.keys['Shift'] = gamepad.buttons[3] && gamepad.buttons[3].pressed;
+            const controllerShift = gamepad.buttons[3] && gamepad.buttons[3].pressed;
+            input.keys['Shift'] = input.keys['Shift'] || controllerShift;
 
             // ⭐ ВИБРАЦИЯ - When damage taken
             if (gamepad.vibrationActuator && gameState.isRunning) {
