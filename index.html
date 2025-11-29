@@ -2808,19 +2808,6 @@
             }
         });
 
-        // Обработка открытия меню
-        const originalClassToggle = Element.prototype.classList.toggle;
-        Element.prototype.classList.toggle = function(className) {
-            const result = originalClassToggle.call(this, className);
-            // Когда появляется меню, инициализируем навигацию
-            if ((this.id === 'menuScreen' || this.id === 'pauseScreen' ||
-                 this.id === 'levelCompleteScreen' || this.id === 'gameOverScreen') &&
-                className === 'active' && result) {
-                initMenuNavigation();
-            }
-            return result;
-        };
-
         // ⭐ МЕГА-ПРОСТАЯ И НАДЕЖНАЯ СИСТЕМА КЛАВИАТУРЫ v3.1
         // 1️⃣ Слушатель ВСЕГДА перехватывает ВСЕ нажатия
         // 2️⃣ Пишет в inputDesktop для всех клавиш БЕЗ условий
