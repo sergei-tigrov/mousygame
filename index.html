@@ -3283,6 +3283,54 @@
             console.log('- input.keys:', Object.keys(input.keys).length === 0 ? '✅ Чисто' : '⚠️ Содержит данные');
             console.log('- gameState.isRunning:', gameState.isRunning ? 'Запущена' : '✅ Остановлена');
             console.log('- gameLoopSafetyCounter:', gameLoopSafetyCounter);
+
+            // ⭐ ОТДЕЛЬНЫЙ LOOP ДЛЯ КОНТРОЛЛЕРА МЕНЮ - работает ВСЕГДА (даже когда меню открыто)
+            let lastGamepadMenuUpdate = 0;
+            let lastGamepadXpress = 0;
+            function controllerMenuLoop() {
+                const now = performance.now();
+
+                // Всегда обновляем контроллер вход
+                updateGamepadInput();
+
+                // Обработка меню навигации контроллером
+                const isMenuOpen = (DOM.menuScreen?.classList.contains('active')) === true;
+                if (isMenuOpen && !gameState.isRunning) {
+                    const mergedInput = getMergedInput();
+
+                    // Навигация меню с debounce 150ms
+                    if (now - lastGamepadMenuUpdate > 150) {
+                        if (mergedInput.keys['ArrowUp']) {
+                            console.log('🎮 Menu UP - Gamepad');
+                            highlightMenuButton(menuState.selectedButtonIndex - 1);
+                            lastGamepadMenuUpdate = now;
+                        } else if (mergedInput.keys['ArrowDown']) {
+                            console.log('🎮 Menu DOWN - Gamepad');
+                            highlightMenuButton(menuState.selectedButtonIndex + 1);
+                            lastGamepadMenuUpdate = now;
+                        }
+                    }
+
+                    // X кнопка для нажатия кнопки (с debounce 300ms)
+                    if (now - lastGamepadXpress > 300) {
+                        if (mergedInput.keys['Space']) {
+                            console.log('🎮 Menu CLICK - Gamepad');
+                            const buttons = getVisibleMenuButtons();
+                            if (buttons.length > 0) {
+                                buttons[menuState.selectedButtonIndex].click();
+                                playSound('button');
+                            }
+                            lastGamepadXpress = now;
+                        }
+                    }
+                }
+
+                requestAnimationFrame(controllerMenuLoop);
+            }
+
+            // Запускаем контроллер меню loop
+            console.log('🎮 Запуск контроллера меню loop...');
+            controllerMenuLoop();
         });
     </script>
 </body>
