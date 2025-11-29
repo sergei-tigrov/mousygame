@@ -3284,7 +3284,7 @@
             console.log('- gameState.isRunning:', gameState.isRunning ? 'Запущена' : '✅ Остановлена');
             console.log('- gameLoopSafetyCounter:', gameLoopSafetyCounter);
 
-            // ⭐ ОТДЕЛЬНЫЙ LOOP ДЛЯ КОНТРОЛЛЕРА МЕНЮ, УРОВНЕЙ И GAME OVER - работает ВСЕГДА
+            // ⭐ ОТДЕЛЬНЫЙ LOOP ДЛЯ ВСЕХ ЭКРАНОВ МЕНЮ (меню, пауза, уровни, game over, рейтинг) - работает ВСЕГДА
             let lastGamepadMenuUpdate = 0;
             let lastGamepadXpress = 0;
             function controllerMenuLoop() {
@@ -3295,12 +3295,13 @@
 
                 const mergedInput = getMergedInput();
                 const isMenuOpen = (DOM.menuScreen?.classList.contains('active')) === true;
+                const isPauseOpen = (DOM.pauseScreen?.classList.contains('active')) === true;
                 const isLevelCompleteOpen = (DOM.levelCompleteScreen?.classList.contains('active')) === true;
                 const isGameOverOpen = (DOM.gameOverScreen?.classList.contains('active')) === true;
                 const isLeaderboardOpen = (DOM.leaderboardScreen && DOM.leaderboardScreen.style.display !== 'none') === true;
-                const isAnyScreenOpen = isMenuOpen || isLevelCompleteOpen || isGameOverOpen || isLeaderboardOpen;
+                const isAnyScreenOpen = isMenuOpen || isPauseOpen || isLevelCompleteOpen || isGameOverOpen || isLeaderboardOpen;
 
-                // ⭐ ОБРАБОТКА ЭКРАНОВ С МЕНЮ (главное меню, game over, рейтинг)
+                // ⭐ ОБРАБОТКА ЭКРАНОВ С МЕНЮ (главное меню, пауза, game over, рейтинг)
                 if (isAnyScreenOpen && !gameState.isRunning) {
                     // Навигация между кнопками с debounce 150ms
                     if (now - lastGamepadMenuUpdate > 150) {
@@ -3345,7 +3346,7 @@
             }
 
             // Запускаем контроллер меню loop
-            console.log('🎮 Запуск контроллера меню, уровней и game over loop...');
+            console.log('🎮 Запуск контроллера для всех экранов меню (меню, пауза, уровни, game over, рейтинг)...');
             controllerMenuLoop();
         });
     </script>
