@@ -891,13 +891,9 @@
                 let isMoving = false;
                 const isSelected = gameState.selectedMouse === gameState.mice.indexOf(this);
 
-                // DEBUG: Логируем скорость и спринт для выбранной мыши
-                const isSprintActive = input.keys['Shift'] && this.stamina > 10;  // ⭐ v3.2: Понижен порог с 20 на 10
+                // ⭐ v3.2: Спринт активируется при Shift и stamina > 10
+                const isSprintActive = input.keys['Shift'] && this.stamina > 10;
                 const speed = isSprintActive ? CONFIG.mouseSprintSpeed : CONFIG.mouseSpeed;
-
-                if (isSelected && (Object.keys(input.keys).length > 0 || this.stamina !== 100)) {
-                    console.log(`🐭 Speed: ${speed.toFixed(2)} (sprint: ${isSprintActive}), stamina: ${this.stamina.toFixed(0)}, input.Shift: ${!!input.keys['Shift']}, friction: ${CONFIG.friction}`);
-                }
 
                 if (input.keys['w'] || input.keys['ArrowUp']) { this.vy -= speed; isMoving = true; }
                 if (input.keys['s'] || input.keys['ArrowDown']) { this.vy += speed; isMoving = true; }
