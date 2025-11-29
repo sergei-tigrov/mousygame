@@ -2821,89 +2821,86 @@
             return result;
         };
 
+        // ⭐ МЕГА-ПРОСТАЯ И НАДЕЖНАЯ СИСТЕМА КЛАВИАТУРЫ v3.1
+        // 1️⃣ Слушатель ВСЕГДА перехватывает ВСЕ нажатия
+        // 2️⃣ Пишет в inputDesktop для всех клавиш БЕЗ условий
+        // 3️⃣ Специальная логика (меню, пауза) обрабатывается ОТДЕЛЬНО
+
+        function normalizeKeyName(key) {
+            // Специальные клавиши - сохраняем как есть
+            if (key === ' ') return 'Space';
+            if (key === 'Enter') return 'Enter';
+            if (key === 'Shift') return 'Shift';
+            if (key === 'Control') return 'Control';
+            // Arrow Keys - сохраняем как есть (ArrowUp, ArrowDown, и т.д.)
+            if (key.startsWith('Arrow')) return key;
+            // Все остальные - в нижний регистр (w, a, s, d, и т.д.)
+            return key.toLowerCase();
+        }
+
+        // ⭐ KEYDOWN - ПРОСТОЙ: запиши ключ в inputDesktop
         document.addEventListener('keydown', (e) => {
-            // ⭐ v3.0: ПОЛНОСТЬЮ ПЕРЕРАБОТАНО - ПИШЕТ В inputDesktop
-            // БЕЗ КОНФЛИКТОВ с gamepad и mobile input!
+            const keyName = normalizeKeyName(e.key);
 
-            console.log('🔑 KEYDOWN event fired:', e.key);
+            // ✅ ГЛАВНОЕ: ВСЕГДА пишем в inputDesktop
+            inputDesktop.keys[keyName] = true;
 
-            // БЕЗОПАСНАЯ ПРОВЕРКА: меню открыто?
+            // ⭐ ОТДЕЛЬНАЯ ЛОГИКА ДЛЯ МЕНЮ (не блокирует ввод)
             const menuScreen = document.getElementById('menuScreen');
             const pauseScreen = document.getElementById('pauseScreen');
             const levelCompleteScreen = document.getElementById('levelCompleteScreen');
             const gameOverScreen = document.getElementById('gameOverScreen');
 
-            const isMenuOpen = (menuScreen?.classList.contains('active')) === true ||
-                              (pauseScreen?.classList.contains('active')) === true ||
-                              (levelCompleteScreen?.classList.contains('active')) === true ||
-                              (gameOverScreen?.classList.contains('active')) === true;
+            const isMenuOpen = (menuScreen && menuScreen.classList.contains('active')) ||
+                              (pauseScreen && pauseScreen.classList.contains('active')) ||
+                              (levelCompleteScreen && levelCompleteScreen.classList.contains('active')) ||
+                              (gameOverScreen && gameOverScreen.classList.contains('active'));
 
-            console.log('  isMenuOpen:', isMenuOpen, '| inputDesktop exists:', !!inputDesktop);
-
-            // МЕНЮ НАВИГАЦИЯ - ТОЛЬКО если меню явно открыто
             if (isMenuOpen) {
                 if (e.key === 'ArrowUp') {
                     e.preventDefault();
                     highlightMenuButton(menuState.selectedButtonIndex - 1);
-                    return;
-                }
-                if (e.key === 'ArrowDown') {
+                } else if (e.key === 'ArrowDown') {
                     e.preventDefault();
                     highlightMenuButton(menuState.selectedButtonIndex + 1);
-                    return;
-                }
-                if (e.key === 'Enter') {
+                } else if (e.key === 'Enter') {
                     e.preventDefault();
                     const buttons = getVisibleMenuButtons();
                     if (buttons.length > 0) {
                         buttons[menuState.selectedButtonIndex].click();
                         playSound('button');
                     }
-                    return;
                 }
             }
 
-            // ⭐ ИГРОВОЕ УПРАВЛЕНИЕ - ПИШЕТ ТОЛЬКО В inputDesktop!
-            // НИКАКИЕ ДРУГИЕ СИСТЕМЫ НЕ ЗАТРАГИВАЮТСЯ!
-            if (!isMenuOpen && inputDesktop) {
-                const keyName = e.key === ' ' ? 'Space' :
-                               (e.key === 'Enter' ? 'Enter' :
-                               (e.key === 'Shift' ? 'Shift' : e.key.toLowerCase()));
-
-                // ✅ ПИШЕМ В inputDesktop, НЕ в input.keys!
-                inputDesktop.keys[keyName] = true;
-                console.log('  ⌨️ Setting inputDesktop.keys[' + keyName + '] = true → Current keys:', Object.keys(inputDesktop.keys).filter(k => inputDesktop.keys[k]));
-
-                // Пауза (Space)
-                if (e.key === ' ' && gameState.isRunning) {
-                    e.preventDefault();
-                    gameState.isPaused = !gameState.isPaused;
-                    document.getElementById('pauseScreen').classList.toggle('active');
-                    playSound('pause');
+            // ⭐ СПЕЦИАЛЬНЫЕ КЛАВИШИ (работают ВСЕГДА, не зависят от условий)
+            if (e.key === ' ' && gameState.isRunning && !isMenuOpen) {
+                e.preventDefault();
+                gameState.isPaused = !gameState.isPaused;
+                const pauseScreen = document.getElementById('pauseScreen');
+                if (pauseScreen) {
+                    pauseScreen.classList.toggle('active');
                 }
+                playSound('pause');
+            }
 
-                // Переключить мышь (Tab)
-                if (e.key === 'Tab' && gameState.isRunning && !gameState.isPaused && gameState.mice.length > 1) {
-                    e.preventDefault();
+            if (e.key === 'Tab' && gameState.isRunning && !gameState.isPaused && !isMenuOpen && gameState.mice.length > 1) {
+                e.preventDefault();
+                gameState.selectedMouse = (gameState.selectedMouse + 1) % gameState.mice.length;
+                let iterations = 0;
+                while (!gameState.mice[gameState.selectedMouse].alive && iterations < gameState.mice.length) {
                     gameState.selectedMouse = (gameState.selectedMouse + 1) % gameState.mice.length;
-                    let iterations = 0;
-                    while (!gameState.mice[gameState.selectedMouse].alive && iterations < gameState.mice.length) {
-                        gameState.selectedMouse = (gameState.selectedMouse + 1) % gameState.mice.length;
-                        iterations++;
-                    }
+                    iterations++;
                 }
             }
-        });
+        }, false);
 
+        // ⭐ KEYUP - ПРОСТОЙ: удали ключ из inputDesktop
         document.addEventListener('keyup', (e) => {
-            // ⭐ v3.0: ПИШЕТ ТОЛЬКО В inputDesktop!
-            const keyName = e.key === ' ' ? 'Space' : (e.key === 'Enter' ? 'Enter' : (e.key === 'Shift' ? 'Shift' : e.key.toLowerCase()));
-            // ✅ ПИШЕМ В inputDesktop, НЕ в input.keys!
-            if (inputDesktop) {
-                inputDesktop.keys[keyName] = false;
-                console.log('🔑 KEYUP:', keyName, '→ Current keys:', Object.keys(inputDesktop.keys).filter(k => inputDesktop.keys[k]));
-            }
-        });
+            const keyName = normalizeKeyName(e.key);
+            // ✅ ГЛАВНОЕ: ВСЕГДА удаляем из inputDesktop
+            inputDesktop.keys[keyName] = false;
+        }, false);
 
         // ==================== СТАРТЕР ====================
         function startGame() {
