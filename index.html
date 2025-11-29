@@ -227,7 +227,7 @@
             <div class="menu-content">
                 <div class="title">🐭 МЫШИНЫЕ ПРЯТКИ 👀</div>
                 <p>Помоги мышкам спрятаться от кошек!</p>
-                <p style="font-size: 11px; opacity: 0.6; margin-bottom: 10px;">Версия <span id="versionDisplay">2.3.0</span></p>
+                <p style="font-size: 11px; opacity: 0.6; margin-bottom: 10px;">Версия <span id="versionDisplay">2.4.0</span></p>
                 <button class="button" onclick="startGame()">▶️ НАЧАТЬ ИГРУ</button>
                 <div class="hint" id="menuTip" style="
                     background: rgba(255, 255, 255, 0.1);
@@ -332,7 +332,7 @@
 
     <script>
         // ==================== ВЕРСИЯ ИГРЫ ====================
-        const GAME_VERSION = '2.3.0'; // RESTORED: Красивые эмодзи вернулись! + Мобильная отладка улучшена
+        const GAME_VERSION = '2.4.0'; // FIXED: Safari эмодзи + Mobile startup + Error handling
 
         // ==================== CROSS-PLATFORM & MOBILE SUPPORT ====================
         const isTouchDevice = () => (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0));
@@ -342,17 +342,41 @@
         let devicePixelRatio = window.devicePixelRatio || 1;
         let lastOrientationCheck = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
 
-        // ==================== РЕНДЕРИНГ ЭМОДЗИ - КРАСИВО И ПРОСТО ====================
+        // ==================== РЕНДЕРИНГ ЭМОДЗИ - РАБОТАЕТ НА ВСЕХ БРАУЗЕРАХ ====================
+        // Правильный font stack для Safari, Chrome, Firefox, Edge и мобильных браузеров
         function drawEmoji(ctx, emoji, x, y, fontSize) {
             ctx.save();
-            ctx.font = `${fontSize}px Arial, -apple-system, sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            try {
-                ctx.fillText(emoji, x, y);
-            } catch (e) {
-                // Игнорируем ошибки - просто не показываем эмодзи если они не поддерживаются
+            ctx.fillStyle = '#000000';
+
+            // Safari требует явного указания цветного эмодзи шрифта
+            // Порядок важен: сначала проверяем Apple Color Emoji, потом остальные
+            const fonts = [
+                `${fontSize}px "Apple Color Emoji"`,
+                `${fontSize}px "Segoe UI Emoji"`,
+                `${fontSize}px "Noto Color Emoji"`,
+                `${fontSize}px Arial`,
+                `${fontSize}px sans-serif`
+            ];
+
+            let rendered = false;
+            for (let fontFamily of fonts) {
+                try {
+                    ctx.font = fontFamily;
+                    ctx.fillText(emoji, x, y);
+                    rendered = true;
+                    break;
+                } catch (e) {
+                    // Пытаемся следующий шрифт
+                    continue;
+                }
             }
+
+            if (!rendered) {
+                console.log('⚠️ Не удалось отрендерить эмодзи:', emoji);
+            }
+
             ctx.restore();
         }
 
@@ -1951,23 +1975,41 @@
         function startGame() {
             console.log('🎮 START GAME - Инициализация игры...');
             try {
+                // Скрываем меню
                 document.getElementById('menuScreen').classList.remove('active');
                 document.getElementById('pauseScreen').classList.remove('active');
                 document.getElementById('levelCompleteScreen').classList.remove('active');
                 document.getElementById('gameOverScreen').classList.remove('active');
+
+                // Инициализируем состояние игры
                 gameState.currentLevel = 1;
                 gameState.score = 0;
                 gameState.isRunning = true;
                 gameState.isPaused = false;
                 console.log('🎮 Меню скрыто, состояние установлено');
-                playSound('button');
+
+                // Звук кнопки (может не сработать на мобиле, но не критично)
+                try {
+                    playSound('button');
+                    console.log('🔊 Звук кнопки проигран');
+                } catch (audioError) {
+                    console.log('⚠️ Звук не работает (это нормально на мобиле):', audioError.message);
+                }
+
                 console.log('🎮 Вызов initGame()...');
                 initGame();
-                console.log('🎮 initGame() завершена, вызов gameLoop()...');
+                console.log('🎮 initGame() завершена успешно');
+
+                console.log('🎮 Вызов gameLoop()...');
                 gameLoop();
-                console.log('✅ Game started успешно!');
+                console.log('✅ Game started успешно! gameLoop запущен');
             } catch (e) {
-                console.error('❌ ERROR in startGame:', e.message, e.stack);
+                console.error('❌ КРИТИЧЕСКАЯ ОШИБКА в startGame:');
+                console.error('Сообщение:', e.message);
+                console.error('Стек:', e.stack);
+                // Для мобиля где консоль может не быть видна
+                alert('Ошибка запуска игры:\n' + e.message);
+                gameState.isRunning = false;
             }
         }
 
