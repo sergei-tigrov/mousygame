@@ -227,7 +227,7 @@
             <div class="menu-content">
                 <div class="title">🐭 МЫШИНЫЕ ПРЯТКИ 👀</div>
                 <p>Помоги мышкам спрятаться от кошек!</p>
-                <p style="font-size: 11px; opacity: 0.6; margin-bottom: 10px;">Версия <span id="versionDisplay">2.2.0</span></p>
+                <p style="font-size: 11px; opacity: 0.6; margin-bottom: 10px;">Версия <span id="versionDisplay">2.3.0</span></p>
                 <button class="button" onclick="startGame()">▶️ НАЧАТЬ ИГРУ</button>
                 <div class="hint" id="menuTip" style="
                     background: rgba(255, 255, 255, 0.1);
@@ -332,7 +332,7 @@
 
     <script>
         // ==================== ВЕРСИЯ ИГРЫ ====================
-        const GAME_VERSION = '2.2.0'; // CRITICAL FIX: Safari/iOS - цветные фигуры вместо эмодзи, полное логирование для отладки
+        const GAME_VERSION = '2.3.0'; // RESTORED: Красивые эмодзи вернулись! + Мобильная отладка улучшена
 
         // ==================== CROSS-PLATFORM & MOBILE SUPPORT ====================
         const isTouchDevice = () => (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0));
@@ -342,52 +342,17 @@
         let devicePixelRatio = window.devicePixelRatio || 1;
         let lastOrientationCheck = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
 
-        // ==================== РЕНДЕРИНГ ЭМОДЗИ - ПРОСТАЯ СИСТЕМА ====================
+        // ==================== РЕНДЕРИНГ ЭМОДЗИ - КРАСИВО И ПРОСТО ====================
         function drawEmoji(ctx, emoji, x, y, fontSize) {
             ctx.save();
             ctx.font = `${fontSize}px Arial, -apple-system, sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(emoji, x, y);
-            ctx.restore();
-        }
-
-        // Цветные фигуры - простые и видны везде
-        function drawCircle(ctx, x, y, radius, color) {
-            ctx.save();
-            ctx.fillStyle = color;
-            ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.arc(x, y, radius, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-            ctx.restore();
-        }
-
-        function drawSquare(ctx, x, y, size, color) {
-            ctx.save();
-            ctx.fillStyle = color;
-            ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
-            ctx.lineWidth = 1;
-            ctx.fillRect(x - size / 2, y - size / 2, size, size);
-            ctx.strokeRect(x - size / 2, y - size / 2, size, size);
-            ctx.restore();
-        }
-
-        function drawDiamond(ctx, x, y, size, color) {
-            ctx.save();
-            ctx.fillStyle = color;
-            ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(x, y - size / 2);
-            ctx.lineTo(x + size / 2, y);
-            ctx.lineTo(x, y + size / 2);
-            ctx.lineTo(x - size / 2, y);
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
+            try {
+                ctx.fillText(emoji, x, y);
+            } catch (e) {
+                // Игнорируем ошибки - просто не показываем эмодзи если они не поддерживаются
+            }
             ctx.restore();
         }
 
@@ -804,8 +769,8 @@
                 }
 
                 ctx.globalAlpha = alpha;
-                // Рисуем мышь розовым кругом - видна везде!
-                drawCircle(ctx, this.x, this.y, this.radius * 0.8, '#FFB6C1');
+                // Рисуем красивую мышь эмодзи
+                drawEmoji(ctx, this.emoji, this.x, this.y, fontSize);
 
                 // Если в норке, показываем эффект "укрытия"
                 if (this.inBurrow) {
@@ -982,9 +947,9 @@
                 ctx.fill();
                 ctx.restore();
 
-                // Кошка ВСЕГДА полностью видна - оранжевый круг
+                // Кошка ВСЕГДА полностью видна - красивый эмодзи!
                 ctx.globalAlpha = 1; // КРИТИЧНО: гарантируем 100% видимость
-                drawCircle(ctx, this.x, this.y, this.radius * 0.9, '#FF8C42');
+                drawEmoji(ctx, this.emoji, this.x, this.y, this.radius * 2);
                 ctx.restore();
             }
         }
@@ -1020,8 +985,8 @@
 
             draw(ctx) {
                 const bobOffset = Math.sin(this.bobbing) * 3;
-                // Сыр - жёлтый квадрат, видны везде!
-                drawSquare(ctx, this.x, this.y + bobOffset, this.radius * 2.4, '#FFD93D');
+                // Красивый сыр эмодзи
+                drawEmoji(ctx, this.emoji, this.x, this.y + bobOffset, this.radius * 2);
             }
         }
 
@@ -1034,8 +999,8 @@
             }
 
             draw(ctx) {
-                // Норка - коричневый круг, видна везде!
-                drawCircle(ctx, this.x, this.y, this.radius * 0.85, '#8B4513');
+                // Красивая норка эмодзи
+                drawEmoji(ctx, this.emoji, this.x, this.y, this.radius * 2);
             }
         }
 
@@ -1048,8 +1013,8 @@
             }
 
             draw(ctx) {
-                // Мышеловка - красный ромб, видна везде!
-                drawDiamond(ctx, this.x, this.y, this.radius * 2.4, '#DC143C');
+                // Красивая ловушка эмодзи
+                drawEmoji(ctx, this.emoji, this.x, this.y, this.radius * 2);
             }
         }
 
@@ -1458,6 +1423,8 @@
                 gameState.canvas.width = canvasWidth;
                 gameState.canvas.height = canvasHeight;
                 console.log(`✅ Canvas размер: ${canvasWidth}x${canvasHeight}`);
+                console.log(`📱 Window размер: ${window.innerWidth}x${window.innerHeight}`);
+                console.log(`📐 Device pixel ratio: ${devicePixelRatio}x`);
 
                 gameState.grid = new SpatialGrid(levelConfig.roomWidth, levelConfig.roomHeight, 100);
             gameState.particles = new ParticlePool(500);
@@ -2059,13 +2026,21 @@
             });
 
             if (isTouch || isMobile) {
-                console.log('📱 Включены виртуальные элементы управления');
-                setupTouchControls();
+                console.log('📱 МОБИЛЬНОЕ УСТРОЙСТВО - Включаем виртуальные элементы управления');
+                const virtualControls = document.getElementById('virtualControls');
+                if (virtualControls) {
+                    console.log('✅ Виртуальные кнопки найдены в DOM');
+                    setupTouchControls();
+                    console.log('✅ Touch контролы инициализированы');
+                } else {
+                    console.error('❌ Виртуальные кнопки НЕ найдены в DOM!');
+                }
 
-                // Hide controls hint for mobile
+                // Обновляем подсказку управления для мобиля
                 const controlsHint = document.getElementById('controls');
                 if (controlsHint) {
-                    controlsHint.textContent = 'Используй кнопки управления внизу';
+                    controlsHint.textContent = '👆 Используй кнопки внизу экрана для управления!';
+                    console.log('✅ Подсказка управления обновлена');
                 }
             }
 
