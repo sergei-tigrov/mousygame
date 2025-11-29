@@ -926,10 +926,10 @@
 
                 if (!this.alive) return;
 
-                // ⭐ v3.2.5: Экспоненциальное затухание friction на разных частотах экрана
-                const frictionFactor = Math.pow(CONFIG.friction, deltaTime);
-                this.vx *= frictionFactor;
-                this.vy *= frictionFactor;
+                // ⭐ NOTE: Мыши получают НОВУЮ скорость каждый кадр (speed * deltaTime),
+                // поэтому linear friction (*= 0.95) работает корректно независимо от частоты экрана
+                this.vx *= CONFIG.friction;
+                this.vy *= CONFIG.friction;
 
                 let isMoving = false;
                 const isSelected = gameState.selectedMouse === gameState.mice.indexOf(this);
