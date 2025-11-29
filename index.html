@@ -512,7 +512,7 @@
             <div class="menu-content">
                 <div class="title">🐭 МЫШИНЫЕ ПРЯТКИ 👀</div>
                 <p>Помоги мышкам спрятаться от кошек!</p>
-                <p style="font-size: 11px; opacity: 0.6; margin-bottom: 10px;">Версия <span id="versionDisplay">2.9.3</span></p>
+                <p style="font-size: 11px; opacity: 0.6; margin-bottom: 10px;">Версия <span id="versionDisplay">2.9.4</span></p>
                 <button class="button" onclick="startGame()">▶️ НАЧАТЬ ИГРУ</button>
                 <div class="hint" id="menuTip" style="
                     background: rgba(255, 255, 255, 0.1);
@@ -625,7 +625,7 @@
 
     <script>
         // ==================== ВЕРСИЯ ИГРЫ ====================
-        const GAME_VERSION = '2.9.3'; // FIXED: Simplified gamepad input - only adds, never blocks keyboard
+        const GAME_VERSION = '2.9.4'; // CRITICAL: Fix keydown handler conflict - clear menu/game separation
 
         // ==================== CROSS-PLATFORM & MOBILE SUPPORT ====================
         const isTouchDevice = () => (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0));
@@ -2718,30 +2718,31 @@
         };
 
         document.addEventListener('keydown', (e) => {
-            // ⭐ v2.9.1: НАВИГАЦИЯ ПО МЕНЮ
-            // Проверяем, открыто ли меню
-            const menuOpen = document.getElementById('menuScreen')?.classList.contains('active') ||
-                           document.getElementById('pauseScreen')?.classList.contains('active') ||
-                           document.getElementById('levelCompleteScreen')?.classList.contains('active') ||
-                           document.getElementById('gameOverScreen')?.classList.contains('active') ||
-                           document.getElementById('leaderboardScreen')?.style.display !== 'none';
+            // ⭐ v2.9.3: НАДЕЖНАЯ ОБРАБОТКА КЛАВИШ БЕЗ КОНФЛИКТОВ
 
-            if (menuOpen) {
-                // Стрелка вверх - предыдущая кнопка
+            // БЕЗОПАСНАЯ ПРОВЕРКА: меню открыто? (только если explicitly active)
+            const menuScreen = document.getElementById('menuScreen');
+            const pauseScreen = document.getElementById('pauseScreen');
+            const levelCompleteScreen = document.getElementById('levelCompleteScreen');
+            const gameOverScreen = document.getElementById('gameOverScreen');
+
+            const isMenuOpen = (menuScreen?.classList.contains('active')) === true ||
+                              (pauseScreen?.classList.contains('active')) === true ||
+                              (levelCompleteScreen?.classList.contains('active')) === true ||
+                              (gameOverScreen?.classList.contains('active')) === true;
+
+            // ⭐ МЕНЮ НАВИГАЦИЯ - ТОЛЬКО если меню явно открыто (active class)
+            if (isMenuOpen) {
                 if (e.key === 'ArrowUp') {
                     e.preventDefault();
                     highlightMenuButton(menuState.selectedButtonIndex - 1);
                     return;
                 }
-
-                // Стрелка вниз - следующая кнопка
                 if (e.key === 'ArrowDown') {
                     e.preventDefault();
                     highlightMenuButton(menuState.selectedButtonIndex + 1);
                     return;
                 }
-
-                // Enter - активировать кнопку
                 if (e.key === 'Enter') {
                     e.preventDefault();
                     const buttons = getVisibleMenuButtons();
@@ -2751,24 +2752,29 @@
                     }
                     return;
                 }
+                // Если меню открыто, другие клавиши обрабатываются ниже
             }
 
-            // Сохраняем оригинальный ключ (Shift, Enter, Space) и lowercase версию для букв
-            const keyName = e.key === ' ' ? 'Space' : (e.key === 'Enter' ? 'Enter' : (e.key === 'Shift' ? 'Shift' : e.key.toLowerCase()));
-            input.keys[keyName] = true;
+            // ⭐ ИГРОВОЕ УПРАВЛЕНИЕ - работает ВСЕГДА (если меню не открыто)
+            // НИКАКИХ КОНФЛИКТОВ!
+            if (!isMenuOpen && input && input.keys) {
+                const keyName = e.key === ' ' ? 'Space' :
+                               (e.key === 'Enter' ? 'Enter' :
+                               (e.key === 'Shift' ? 'Shift' : e.key.toLowerCase()));
 
-            if (e.key === ' ') {
-                e.preventDefault();
-                if (gameState.isRunning) {
+                input.keys[keyName] = true;
+
+                // Пауза (Space)
+                if (e.key === ' ' && gameState.isRunning) {
+                    e.preventDefault();
                     gameState.isPaused = !gameState.isPaused;
                     document.getElementById('pauseScreen').classList.toggle('active');
                     playSound('pause');
                 }
-            }
 
-            if (e.key === 'Tab') {
-                e.preventDefault();
-                if (gameState.isRunning && !gameState.isPaused && gameState.mice.length > 1) {
+                // Переключить мышь (Tab)
+                if (e.key === 'Tab' && gameState.isRunning && !gameState.isPaused && gameState.mice.length > 1) {
+                    e.preventDefault();
                     gameState.selectedMouse = (gameState.selectedMouse + 1) % gameState.mice.length;
                     let iterations = 0;
                     while (!gameState.mice[gameState.selectedMouse].alive && iterations < gameState.mice.length) {
@@ -2776,6 +2782,12 @@
                         iterations++;
                     }
                 }
+            } else if (isMenuOpen && input && input.keys) {
+                // Даже в меню устанавливаем input.keys для менеджмента состояния
+                const keyName = e.key === ' ' ? 'Space' :
+                               (e.key === 'Enter' ? 'Enter' :
+                               (e.key === 'Shift' ? 'Shift' : e.key.toLowerCase()));
+                input.keys[keyName] = true;
             }
         });
 
