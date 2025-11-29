@@ -3284,7 +3284,7 @@
             console.log('- gameState.isRunning:', gameState.isRunning ? 'Запущена' : '✅ Остановлена');
             console.log('- gameLoopSafetyCounter:', gameLoopSafetyCounter);
 
-            // ⭐ ОТДЕЛЬНЫЙ LOOP ДЛЯ КОНТРОЛЛЕРА МЕНЮ И УРОВНЕЙ - работает ВСЕГДА
+            // ⭐ ОТДЕЛЬНЫЙ LOOP ДЛЯ КОНТРОЛЛЕРА МЕНЮ, УРОВНЕЙ И GAME OVER - работает ВСЕГДА
             let lastGamepadMenuUpdate = 0;
             let lastGamepadXpress = 0;
             function controllerMenuLoop() {
@@ -3296,10 +3296,13 @@
                 const mergedInput = getMergedInput();
                 const isMenuOpen = (DOM.menuScreen?.classList.contains('active')) === true;
                 const isLevelCompleteOpen = (DOM.levelCompleteScreen?.classList.contains('active')) === true;
+                const isGameOverOpen = (DOM.gameOverScreen?.classList.contains('active')) === true;
+                const isLeaderboardOpen = (DOM.leaderboardScreen && DOM.leaderboardScreen.style.display !== 'none') === true;
+                const isAnyScreenOpen = isMenuOpen || isLevelCompleteOpen || isGameOverOpen || isLeaderboardOpen;
 
-                // ⭐ ОБРАБОТКА ГЛАВНОГО МЕНЮ
-                if (isMenuOpen && !gameState.isRunning) {
-                    // Навигация меню с debounce 150ms
+                // ⭐ ОБРАБОТКА ЭКРАНОВ С МЕНЮ (главное меню, game over, рейтинг)
+                if (isAnyScreenOpen && !gameState.isRunning) {
+                    // Навигация между кнопками с debounce 150ms
                     if (now - lastGamepadMenuUpdate > 150) {
                         if (mergedInput.keys['ArrowUp']) {
                             console.log('🎮 Menu UP - Gamepad');
@@ -3315,7 +3318,7 @@
                     // X кнопка для нажатия кнопки (с debounce 300ms)
                     if (now - lastGamepadXpress > 300) {
                         if (mergedInput.keys['Space']) {
-                            console.log('🎮 Menu CLICK - Gamepad');
+                            console.log('🎮 Menu/Screen CLICK - Gamepad');
                             const buttons = getVisibleMenuButtons();
                             if (buttons.length > 0) {
                                 buttons[menuState.selectedButtonIndex].click();
@@ -3326,9 +3329,8 @@
                     }
                 }
 
-                // ⭐ ОБРАБОТКА ЭКРАНА ЗАВЕРШЕНИЯ УРОВНЯ
+                // ⭐ ОБРАБОТКА ЭКРАНА ЗАВЕРШЕНИЯ УРОВНЯ (специальный случай - прямой переход)
                 if (isLevelCompleteOpen && !gameState.isRunning) {
-                    // X кнопка для перехода на следующий уровень (с debounce 300ms)
                     if (now - lastGamepadXpress > 300) {
                         if (mergedInput.keys['Space']) {
                             console.log('🎮 Next Level - Gamepad X Button');
@@ -3343,7 +3345,7 @@
             }
 
             // Запускаем контроллер меню loop
-            console.log('🎮 Запуск контроллера меню и уровней loop...');
+            console.log('🎮 Запуск контроллера меню, уровней и game over loop...');
             controllerMenuLoop();
         });
     </script>
