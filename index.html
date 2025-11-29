@@ -625,12 +625,21 @@
 
     <script>
         // ==================== ВЕРСИЯ ИГРЫ ====================
-        const GAME_VERSION = '2.9.4'; // CRITICAL: Fix keydown handler conflict - clear menu/game separation
+        const GAME_VERSION = '3.0.0'; // ⭐ INPUT SYSTEM REFACTOR - Three isolated input channels, no conflicts
 
         // ==================== CROSS-PLATFORM & MOBILE SUPPORT ====================
         const isTouchDevice = () => (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0));
         const isMobileDevice = () => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         const isIOSSafari = () => /Safari/.test(navigator.userAgent) && /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+        // ⭐ v3.0: DEVICE TYPE DEFINITION - для явной изоляции мобильной/десктопной логики
+        const DEVICE_TYPE = {
+            DESKTOP: 'desktop',
+            MOBILE: 'mobile'
+        };
+
+        // ✅ Определяем тип устройства один раз при загрузке
+        const CURRENT_DEVICE = isMobileDevice() || isTouchDevice() ? DEVICE_TYPE.MOBILE : DEVICE_TYPE.DESKTOP;
 
         let devicePixelRatio = window.devicePixelRatio || 1;
         let lastOrientationCheck = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
@@ -868,7 +877,11 @@
                 this.burrowHealingTimer = 0;
             }
 
-            update(grid, input, gameState) {
+            update(grid, gameState) {
+                // ⭐ v3.0: ПОЛУЧАЕМ input ИЗ getMergedInput() вместо параметра!
+                // Это позволяет читать из объединенного input всех систем
+                const input = getMergedInput();
+
                 if (!this.alive) return;
 
                 this.vx *= CONFIG.friction;
@@ -1489,7 +1502,76 @@
             fps: 60,
         };
 
+        // ==================== INPUT SYSTEM v3.0 ====================
+        // ⭐ ПОЛНАЯ ПЕРЕРАБОТКА - ТРИ ИЗОЛИРОВАННЫЕ СИСТЕМЫ ВВОДА
+
+        // Старый объект - для обратной совместимости
         let input = { keys: {}, mouse: { x: 0, y: 0 } };
+
+        // СИСТЕМА 1: DESKTOP INPUT - Только клавиатура
+        let inputDesktop = {
+            keys: {}  // { 'w': true, 'ArrowUp': true, ... }
+        };
+
+        // СИСТЕМА 2: GAMEPAD INPUT - Только контроллер PS4 с отслеживанием
+        let inputGamepad = {
+            keys: {},              // { 'ArrowUp': true, 'Shift': true, ... }
+            previousState: {},     // Для отслеживания изменений стика
+            stickPosition: {        // Текущее положение стика
+                x: 0,
+                y: 0
+            }
+        };
+
+        // СИСТЕМА 3: MOBILE INPUT - Только touch кнопки
+        let inputMobile = {
+            keys: {}  // { 'ArrowUp': true, 'Space': true, ... }
+        };
+
+        // ⭐ ФУНКЦИЯ ОБЪЕДИНЕНИЯ - единственный источник истины для игры
+        function getMergedInput() {
+            // Объединяем все три канала в один
+            const merged = {};
+
+            // Клавиатура (Desktop)
+            for (let key in inputDesktop.keys) {
+                if (inputDesktop.keys[key]) merged[key] = true;
+            }
+
+            // Контроллер (Gamepad) - может перекрыть keyboard
+            for (let key in inputGamepad.keys) {
+                if (inputGamepad.keys[key]) merged[key] = true;
+            }
+
+            // Мобильные кнопки (Mobile) - может перекрыть оба
+            for (let key in inputMobile.keys) {
+                if (inputMobile.keys[key]) merged[key] = true;
+            }
+
+            // Обновляем старый input.keys для совместимости с остальным кодом
+            input.keys = merged;
+
+            return input;  // Возвращаем в прежнем формате
+        }
+
+        // ⭐ ФУНКЦИЯ БЕЗОПАСНОЙ ОЧИСТКИ - вместо input.keys = {}
+        function clearAllInput() {
+            // Очищаем все ключи БЕЗ создания нового объекта (важно для ссылок)
+            for (let key in inputDesktop.keys) {
+                inputDesktop.keys[key] = false;
+            }
+            for (let key in inputGamepad.keys) {
+                inputGamepad.keys[key] = false;
+            }
+            for (let key in inputMobile.keys) {
+                inputMobile.keys[key] = false;
+            }
+            // Обновляем merged
+            input.keys = {};
+
+            console.log('🔄 INPUT CLEARED - все системы ввода очищены');
+        }
+
         let fpsFrames = 0, lastFpsTime = 0;
 
         // ==================== ЗВУКИ ====================
@@ -2012,8 +2094,10 @@
                 updateGamepadInput();
 
                 // Обновления
+                // ⭐ v3.0: Mouse.update() теперь вызывается без input параметра
+                // (получает input из getMergedInput() внутри функции)
                 for (let i = gameState.mice.length - 1; i >= 0; i--) {
-                    gameState.mice[i].update(gameState.grid, input, gameState);
+                    gameState.mice[i].update(gameState.grid, gameState);
                 }
                 for (let i = gameState.cats.length - 1; i >= 0; i--) {
                     gameState.cats[i].update(gameState);
@@ -2071,8 +2155,8 @@
                     gameLoopSafetyCounter = 0;
                     playSound('gameOver');
 
-                    // Очищаем input state чтобы избежать зависания
-                    input.keys = {};
+                    // ⭐ v3.0: Очищаем input state БЕЗОПАСНО
+                    clearAllInput();
 
                     // Создаем снимок состояния игры ДО любых DOM операций
                     const finalLevel = gameState.currentLevel;
@@ -2137,8 +2221,8 @@
                     gameLoopSafetyCounter = 0;
                     playSound('victory');
 
-                    // Очищаем input state
-                    input.keys = {};
+                    // ⭐ v3.0: Очищаем input state БЕЗОПАСНО
+                    clearAllInput();
 
                     // Создаем снимок состояния ДО любых операций
                     const completeLevel = gameState.currentLevel;
@@ -2183,65 +2267,56 @@
 
         // ==================== УПРАВЛЕНИЕ ====================
         // Touch controls for mobile
-        // ⭐ v2.7.1: ОБНОВЛЕННАЯ ОБРАБОТКА ACTION BUTTONS
-        // ⭐ v2.8.0: ПРОСТАЯ И НАДЕЖНАЯ ОБРАБОТКА УПРАВЛЕНИЯ
+        // ⭐ v3.0: MOBILE TOUCH CONTROLS - ПОЛНАЯ ПЕРЕРАБОТКА
+        // ОДИН LISTENER per BUTTON + ИЗОЛЯЦИЯ МОБИЛЕЙ
         function setupTouchControls() {
-            console.log('🎮 Инициализация мобильных кнопок...');
-
-            const virtualControls = document.getElementById('virtualControls');
-            if (!virtualControls) {
-                console.warn('⚠️ virtualControls не найден - управление может быть недоступно');
+            // ✅ ТОЛЬКО ДЛЯ МОБИЛЬНЫХ УСТРОЙСТВ!
+            if (!isMobileDevice()) {
+                console.log('💻 Desktop mode - touch controls не инициализируются');
                 return;
             }
 
-            // Получаем все кнопки управления (D-pad + action buttons)
+            console.log('📱 Инициализация mobile touch controls...');
+
+            const virtualControls = document.getElementById('virtualControls');
+            if (!virtualControls) {
+                console.warn('⚠️ virtualControls не найден');
+                return;
+            }
+
             const allButtons = virtualControls.querySelectorAll('[data-key]');
-            console.log(`✅ Найдено ${allButtons.length} кнопок управления`);
+            console.log(`✅ Найдено ${allButtons.length} мобильных кнопок`);
 
             allButtons.forEach(btn => {
                 const key = btn.dataset.key;
                 if (!key) return;
 
-                // Touchstart - нажатие кнопки
-                btn.addEventListener('touchstart', (e) => {
-                    e.preventDefault();
-                    input.keys[key] = true;
-                }, { passive: false });
+                // ✅ ОДИН HANDLER - pointerdown/up работает для touch, mouse, pen
+                // НЕ используем touchstart/touchend/mousedown/mouseup/pointerdown/pointerup отдельно!
 
-                // Touchend - отпускание кнопки
-                btn.addEventListener('touchend', (e) => {
-                    e.preventDefault();
-                    input.keys[key] = false;
-                }, { passive: false });
-
-                // Mousedown - для тестирования на десктопе
-                btn.addEventListener('mousedown', (e) => {
-                    e.preventDefault();
-                    input.keys[key] = true;
-                });
-
-                // Mouseup - для десктопа
-                btn.addEventListener('mouseup', (e) => {
-                    e.preventDefault();
-                    input.keys[key] = false;
-                });
-
-                // Mouseleave - если вышли из элемента
-                btn.addEventListener('mouseleave', () => {
-                    input.keys[key] = false;
-                });
-
-                // Pointerdown/pointerup - более универсальный подход для некоторых браузеров
                 btn.addEventListener('pointerdown', (e) => {
-                    input.keys[key] = true;
-                }, { passive: true });
+                    // ✅ ПИШЕМ ТОЛЬКО В inputMobile!
+                    inputMobile.keys[key] = true;
+                    // Визуальная обратная связь
+                    btn.style.transform = 'scale(0.95)';
+                });
 
                 btn.addEventListener('pointerup', (e) => {
-                    input.keys[key] = false;
-                }, { passive: true });
+                    // ✅ ПИШЕМ ТОЛЬКО В inputMobile!
+                    inputMobile.keys[key] = false;
+                    // Восстанавливаем стиль
+                    btn.style.transform = 'scale(1)';
+                });
+
+                // pointercancel - когда палец ушел за границы или прервано
+                btn.addEventListener('pointercancel', (e) => {
+                    // ✅ Безопасное очищение
+                    inputMobile.keys[key] = false;
+                    btn.style.transform = 'scale(1)';
+                });
             });
 
-            console.log('✅ Все кнопки инициализированы успешно');
+            console.log('✅ Mobile touch controls инициализированы успешно');
         }
 
         // ⭐ МОБИЛЬНАЯ ОПТИМИЗАЦИЯ МЕНЮ КНОПОК
@@ -2341,9 +2416,8 @@
             try {
                 // 1. Очищаем input state
                 console.log('🔄 Очистка input state...');
-                for (let key in input.keys) {
-                    input.keys[key] = false;
-                }
+                // ⭐ v3.0: Используем безопасную функцию очистки
+                clearAllInput();
 
                 // 2. Получаем canvas
                 console.log('📐 Инициализация canvas...');
@@ -2504,17 +2578,24 @@
         };
 
         function updateGamepadInput() {
-            // ⭐ v2.9.3: ПРОСТОЙ И НАДЕЖНЫЙ GAMEPAD INPUT
-            // КОНТРОЛЛЕР ПРОСТО ДОБАВЛЯЕТСЯ К УПРАВЛЕНИЮ, НЕ ЗАМЕНЯЕТ!
+            // ⭐ v3.0: ПОЛНОСТЬЮ ПЕРЕРАБОТАННЫЙ GAMEPAD INPUT С ОТСЛЕЖИВАНИЕМ СОСТОЯНИЯ
+            // Теперь ПРАВИЛЬНО очищает ключи когда стик отпущен!
             try {
-                if (!input || !input.keys) return; // Безопасность
+                if (!inputGamepad) return; // Безопасность
 
                 const gamepads = navigator.getGamepads ? navigator.getGamepads() : (navigator.webkitGetGamepads ? navigator.webkitGetGamepads() : []);
+
+                // Контроллер отключен - ПОЛНОСТЬЮ ОЧИСТИТЬ ВСЕ КЛЮЧИ
                 if (!gamepads || gamepads.length === 0) {
                     if (gamepadState.connected) {
                         gamepadState.connected = false;
                         updateControllerIndicator();
+                        console.log('❌ Контроллер отключен');
                     }
+                    // ✅ Очистить все ключи контроллера
+                    inputGamepad.keys = {};
+                    inputGamepad.previousState = {};
+                    inputGamepad.stickPosition = { x: 0, y: 0 };
                     return;
                 }
 
@@ -2529,28 +2610,40 @@
                     updateControllerIndicator();
                 }
 
-                // ⭐ ЛЕВЫЙ СТИК - ДОБАВЛЯЕМ к управлению (не заменяем!)
+                // ⭐ НОВЫЙ ПОДХОД: Вычислить ЧТО ДОЛЖНО БЫТЬ СЕЙЧАС
+                const newState = {};
+
+                // ЛЕВЫЙ СТИК
                 const stickX = gamepad.axes[0] || 0;
                 const stickY = gamepad.axes[1] || 0;
                 const deadZone = 0.15;
 
-                // Просто добавляем от контроллера, если стик движется
+                // Запомнить положение стика (для отладки)
+                inputGamepad.stickPosition.x = stickX;
+                inputGamepad.stickPosition.y = stickY;
+
+                // ✅ ТЕПЕРЬ ПРАВИЛЬНО: Только если стик достаточно смещен
                 if (Math.abs(stickY) > deadZone) {
-                    if (stickY < -0.3) input.keys['ArrowUp'] = true;
-                    if (stickY > 0.3) input.keys['ArrowDown'] = true;
+                    if (stickY < -0.3) newState['ArrowUp'] = true;
+                    if (stickY > 0.3) newState['ArrowDown'] = true;
                 }
                 if (Math.abs(stickX) > deadZone) {
-                    if (stickX < -0.3) input.keys['ArrowLeft'] = true;
-                    if (stickX > 0.3) input.keys['ArrowRight'] = true;
+                    if (stickX < -0.3) newState['ArrowLeft'] = true;
+                    if (stickX > 0.3) newState['ArrowRight'] = true;
                 }
 
-                // ⭐ КНОПКИ - ДОБАВЛЯЕМ к управлению
-                if (gamepad.buttons[0]?.pressed) input.keys['Space'] = true;  // X = Пауза
-                if (gamepad.buttons[1]?.pressed) input.keys['e'] = true;       // O = Норка
-                if (gamepad.buttons[2]?.pressed) input.keys['Tab'] = true;     // △ = Переключить
-                if (gamepad.buttons[3]?.pressed) input.keys['Shift'] = true;   // □ = Спринт
+                // КНОПКИ
+                if (gamepad.buttons[0]?.pressed) newState['Space'] = true;  // X = Пауза
+                if (gamepad.buttons[1]?.pressed) newState['e'] = true;       // O = Норка
+                if (gamepad.buttons[2]?.pressed) newState['Tab'] = true;     // △ = Переключить
+                if (gamepad.buttons[3]?.pressed) newState['Shift'] = true;   // □ = Спринт
 
-                // ⭐ ВИБРАЦИЯ при нажатии
+                // ✅ КРИТИЧЕСКОЕ: Установить inputGamepad.keys = newState
+                // Теперь ключи которые НЕ в newState будут undefined, не true!
+                inputGamepad.keys = newState;
+                inputGamepad.previousState = newState;
+
+                // ВИБРАЦИЯ при нажатии
                 if (gamepad.vibrationActuator && gameState.isRunning) {
                     if (gamepad.buttons[0]?.pressed || gamepad.buttons[1]?.pressed) {
                         try {
@@ -2718,9 +2811,10 @@
         };
 
         document.addEventListener('keydown', (e) => {
-            // ⭐ v2.9.3: НАДЕЖНАЯ ОБРАБОТКА КЛАВИШ БЕЗ КОНФЛИКТОВ
+            // ⭐ v3.0: ПОЛНОСТЬЮ ПЕРЕРАБОТАНО - ПИШЕТ В inputDesktop
+            // БЕЗ КОНФЛИКТОВ с gamepad и mobile input!
 
-            // БЕЗОПАСНАЯ ПРОВЕРКА: меню открыто? (только если explicitly active)
+            // БЕЗОПАСНАЯ ПРОВЕРКА: меню открыто?
             const menuScreen = document.getElementById('menuScreen');
             const pauseScreen = document.getElementById('pauseScreen');
             const levelCompleteScreen = document.getElementById('levelCompleteScreen');
@@ -2731,7 +2825,7 @@
                               (levelCompleteScreen?.classList.contains('active')) === true ||
                               (gameOverScreen?.classList.contains('active')) === true;
 
-            // ⭐ МЕНЮ НАВИГАЦИЯ - ТОЛЬКО если меню явно открыто (active class)
+            // МЕНЮ НАВИГАЦИЯ - ТОЛЬКО если меню явно открыто
             if (isMenuOpen) {
                 if (e.key === 'ArrowUp') {
                     e.preventDefault();
@@ -2752,17 +2846,17 @@
                     }
                     return;
                 }
-                // Если меню открыто, другие клавиши обрабатываются ниже
             }
 
-            // ⭐ ИГРОВОЕ УПРАВЛЕНИЕ - работает ВСЕГДА (если меню не открыто)
-            // НИКАКИХ КОНФЛИКТОВ!
-            if (!isMenuOpen && input && input.keys) {
+            // ⭐ ИГРОВОЕ УПРАВЛЕНИЕ - ПИШЕТ ТОЛЬКО В inputDesktop!
+            // НИКАКИЕ ДРУГИЕ СИСТЕМЫ НЕ ЗАТРАГИВАЮТСЯ!
+            if (!isMenuOpen && inputDesktop) {
                 const keyName = e.key === ' ' ? 'Space' :
                                (e.key === 'Enter' ? 'Enter' :
                                (e.key === 'Shift' ? 'Shift' : e.key.toLowerCase()));
 
-                input.keys[keyName] = true;
+                // ✅ ПИШЕМ В inputDesktop, НЕ в input.keys!
+                inputDesktop.keys[keyName] = true;
 
                 // Пауза (Space)
                 if (e.key === ' ' && gameState.isRunning) {
@@ -2782,18 +2876,16 @@
                         iterations++;
                     }
                 }
-            } else if (isMenuOpen && input && input.keys) {
-                // Даже в меню устанавливаем input.keys для менеджмента состояния
-                const keyName = e.key === ' ' ? 'Space' :
-                               (e.key === 'Enter' ? 'Enter' :
-                               (e.key === 'Shift' ? 'Shift' : e.key.toLowerCase()));
-                input.keys[keyName] = true;
             }
         });
 
         document.addEventListener('keyup', (e) => {
+            // ⭐ v3.0: ПИШЕТ ТОЛЬКО В inputDesktop!
             const keyName = e.key === ' ' ? 'Space' : (e.key === 'Enter' ? 'Enter' : (e.key === 'Shift' ? 'Shift' : e.key.toLowerCase()));
-            input.keys[keyName] = false;
+            // ✅ ПИШЕМ В inputDesktop, НЕ в input.keys!
+            if (inputDesktop) {
+                inputDesktop.keys[keyName] = false;
+            }
         });
 
         // ==================== СТАРТЕР ====================
