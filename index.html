@@ -895,6 +895,11 @@
                 const isSprintActive = input.keys['Shift'] && this.stamina > 10;
                 const speed = isSprintActive ? CONFIG.mouseSprintSpeed : CONFIG.mouseSpeed;
 
+                // DEBUG: Логируем скорость для выбранной мыши (каждые 5 сек)
+                if (isSelected && gameLoopSafetyCounter % 300 === 0 && (Object.keys(input.keys).length > 0)) {
+                    console.log(`🐭 SELECTED MOUSE SPEED: ${speed.toFixed(2)} (sprint: ${isSprintActive}, stamina: ${this.stamina.toFixed(0)}, CONFIG: base=${CONFIG.mouseSpeed}, sprint=${CONFIG.mouseSprintSpeed})`);
+                }
+
                 if (input.keys['w'] || input.keys['ArrowUp']) { this.vy -= speed; isMoving = true; }
                 if (input.keys['s'] || input.keys['ArrowDown']) { this.vy += speed; isMoving = true; }
                 if (input.keys['a'] || input.keys['ArrowLeft']) { this.vx -= speed; isMoving = true; }
@@ -1594,19 +1599,42 @@
                     // Safari, Chrome, Firefox compatibility
                     const AudioContextClass = window.AudioContext || window.webkitAudioContext || window.mozAudioContext;
                     if (!AudioContextClass) {
-                        console.log('Web Audio API не поддерживается');
+                        console.log('🔴 Web Audio API не поддерживается');
                         return null;
                     }
                     gameState.audioContext = new AudioContextClass();
+                    console.log('✅ AudioContext создан:', gameState.audioContext.constructor.name, 'state:', gameState.audioContext.state);
 
-                    // Resume audio context for iOS/Safari
+                    // Resume audio context for iOS/Safari - БОЛЕЕ АГРЕССИВНЫЙ ПОДХОД
                     if (gameState.audioContext.state === 'suspended') {
+                        console.log('⚠️ AudioContext suspended, установка resume listeners...');
+                        // Попытка 1: На click
                         document.addEventListener('click', () => {
-                            gameState.audioContext.resume();
+                            gameState.audioContext.resume().then(() => {
+                                console.log('✅ AudioContext resumed on click');
+                            }).catch(e => {
+                                console.log('❌ Resume failed:', e);
+                            });
+                        });
+                        // Попытка 2: На first keydown
+                        document.addEventListener('keydown', () => {
+                            if (gameState.audioContext.state === 'suspended') {
+                                gameState.audioContext.resume().then(() => {
+                                    console.log('✅ AudioContext resumed on keydown');
+                                });
+                            }
+                        }, { once: true });
+                        // Попытка 3: На first touch
+                        document.addEventListener('touchstart', () => {
+                            if (gameState.audioContext.state === 'suspended') {
+                                gameState.audioContext.resume().then(() => {
+                                    console.log('✅ AudioContext resumed on touch');
+                                });
+                            }
                         }, { once: true });
                     }
                 } catch (e) {
-                    console.log('Audio не доступен:', e.message);
+                    console.log('🔴 Audio не доступен:', e.message);
                     return null;
                 }
             }
@@ -2082,6 +2110,10 @@
                 fpsFrames++;
                 if (now - lastFpsTime >= 1000) {
                     gameState.fps = fpsFrames;
+                    // DEBUG: Предупредим если FPS не 60 (может объяснить проблемы со скоростью)
+                    if (Math.abs(fpsFrames - 60) > 5) {
+                        console.warn(`⚠️ FPS ABNORMAL: ${fpsFrames} (expected 60) - This may cause speed issues!`);
+                    }
                     fpsFrames = 0;
                     lastFpsTime = now;
                 }
