@@ -625,7 +625,7 @@
 
     <script>
         // ==================== ВЕРСИЯ ИГРЫ ====================
-        const GAME_VERSION = '2.8.1'; // FIXED: Mobile controls now visible on iPhone - smaller buttons, better media queries
+        const GAME_VERSION = '2.9.0'; // NEW: Full PS4 Controller support with Gamepad API, vibration, and indicator
 
         // ==================== CROSS-PLATFORM & MOBILE SUPPORT ====================
         const isTouchDevice = () => (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0));
@@ -1346,7 +1346,8 @@
             "🎯 Каждый уровень сложнее - будьте внимательнее!",
             "🐱 Кошки видят в конусе впереди себя - обходите их сбоку!",
             "⚡ Выносливость восстанавливается медленнее при большом шуме!",
-            "🎮 TAB переключает мышей - выбирайте стратегически!"
+            "🎮 TAB переключает мышей - выбирайте стратегически!",
+            "🕹️ PS4 контроллер поддерживается! Left Stick = движение, кнопки = действия"
         ];
 
         let currentTip = 0;
@@ -2007,6 +2008,9 @@
                     console.log(`🎮 Game objects:${gameState.mice.length}м, ${gameState.cats.length}к, ${gameState.cheese.length}ч, ${gameState.obstacles.length}пр`);
                 }
 
+                // ⭐ v2.9.0: Update gamepad input every frame
+                updateGamepadInput();
+
                 // Обновления
                 for (let i = gameState.mice.length - 1; i >= 0; i--) {
                     gameState.mice[i].update(gameState.grid, input, gameState);
@@ -2484,6 +2488,148 @@
                 e.preventDefault();
             }
         }, { passive: false });
+
+        // ==================== GAMEPAD API (PS4 Controller Support) ====================
+        // ⭐ v2.9.0: ПОЛНАЯ ПОДДЕРЖКА PS4 КОНТРОЛЛЕРА
+
+        let gamepadState = {
+            connected: false,
+            buttonMap: {
+                0: 'Square',      // Квадрат - Спринт (Shift)
+                1: 'Circle',      // Кружок - Норка (E)
+                2: 'Triangle',    // Треугольник - Переключить мышь (Tab)
+                3: 'Cross',       // Крест - Пауза (Space)
+            },
+            deadZone: 0.15  // 15% dead zone для стиков
+        };
+
+        function updateGamepadInput() {
+            const gamepads = navigator.getGamepads ? navigator.getGamepads() : (navigator.webkitGetGamepads ? navigator.webkitGetGamepads() : []);
+            if (!gamepads || gamepads.length === 0) {
+                if (gamepadState.connected) {
+                    gamepadState.connected = false;
+                    console.log('🎮 Контроллер отключен');
+                    updateControllerIndicator();
+                }
+                return;
+            }
+
+            const gamepad = gamepads[0];
+            if (!gamepad) return;
+
+            // Обновляем статус подключения
+            if (!gamepadState.connected) {
+                gamepadState.connected = true;
+                console.log('✅ Контроллер подключен!', gamepad.id);
+                playSound('button');  // Звук подтверждения
+                updateControllerIndicator();
+            }
+
+            // ⭐ ЛЕВЫЙ СТИК - ДВИЖЕНИЕ (axes 0, 1)
+            const leftStickX = gamepad.axes[0];
+            const leftStickY = gamepad.axes[1];
+
+            // Применяем dead zone
+            const absX = Math.abs(leftStickX);
+            const absY = Math.abs(leftStickY);
+
+            // Очищаем старые направления
+            input.keys['ArrowUp'] = false;
+            input.keys['ArrowDown'] = false;
+            input.keys['ArrowLeft'] = false;
+            input.keys['ArrowRight'] = false;
+
+            // Новые направления на основе стика
+            if (absY > gamepadState.deadZone) {
+                if (leftStickY < -0.3) input.keys['ArrowUp'] = true;
+                if (leftStickY > 0.3) input.keys['ArrowDown'] = true;
+            }
+            if (absX > gamepadState.deadZone) {
+                if (leftStickX < -0.3) input.keys['ArrowLeft'] = true;
+                if (leftStickX > 0.3) input.keys['ArrowRight'] = true;
+            }
+
+            // ⭐ КНОПКИ
+            // Крест (X) = button 0 -> ПАУЗА (Space)
+            if (gamepad.buttons[0] && gamepad.buttons[0].pressed) {
+                input.keys['Space'] = true;
+            } else {
+                input.keys['Space'] = false;
+            }
+
+            // Кружок (O) = button 1 -> НОРКА (E)
+            if (gamepad.buttons[1] && gamepad.buttons[1].pressed) {
+                input.keys['e'] = true;
+            } else {
+                input.keys['e'] = false;
+            }
+
+            // Треугольник = button 2 -> ПЕРЕКЛЮЧИТЬ МЫШЬ (Tab)
+            input.keys['Tab'] = gamepad.buttons[2] && gamepad.buttons[2].pressed;
+
+            // Квадрат = button 3 -> СПРИНТ (Shift)
+            input.keys['Shift'] = gamepad.buttons[3] && gamepad.buttons[3].pressed;
+
+            // ⭐ ВИБРАЦИЯ - When damage taken
+            if (gamepad.vibrationActuator && gameState.isRunning) {
+                // При нажатии кнопки - короткая вибрация
+                if (gamepad.buttons[0].pressed || gamepad.buttons[1].pressed || gamepad.buttons[2].pressed) {
+                    try {
+                        gamepad.vibrationActuator.playEffect('dual-rumble', {
+                            startDelay: 0,
+                            duration: 50,
+                            weakMagnitude: 0.3,
+                            strongMagnitude: 0.1
+                        });
+                    } catch (e) {
+                        // Вибрация может быть недоступна на некоторых браузерах
+                    }
+                }
+            }
+        }
+
+        function updateControllerIndicator() {
+            const indicator = document.getElementById('controllerIndicator');
+            if (!indicator) {
+                // Создаем индикатор если его нет
+                const div = document.createElement('div');
+                div.id = 'controllerIndicator';
+                div.style.cssText = `
+                    position: fixed;
+                    top: 10px;
+                    right: 10px;
+                    z-index: 1000;
+                    padding: 8px 12px;
+                    background: linear-gradient(135deg, rgba(100, 200, 255, 0.9), rgba(100, 150, 255, 0.7));
+                    border: 2px solid rgba(150, 220, 255, 0.8);
+                    border-radius: 6px;
+                    color: white;
+                    font-weight: bold;
+                    font-size: 14px;
+                    display: ${gamepadState.connected ? 'block' : 'none'};
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+                    transition: all 0.2s ease;
+                `;
+                div.textContent = '🎮 PS4 Connected';
+                document.body.appendChild(div);
+            } else {
+                indicator.style.display = gamepadState.connected ? 'block' : 'none';
+            }
+        }
+
+        // Слушаем события подключения/отключения контроллера
+        window.addEventListener('gamepadconnected', (e) => {
+            console.log('🎮 Gamepad подключен:', e.gamepad.id);
+            gamepadState.connected = true;
+            updateControllerIndicator();
+            playSound('button');
+        });
+
+        window.addEventListener('gamepaddisconnected', (e) => {
+            console.log('❌ Gamepad отключен');
+            gamepadState.connected = false;
+            updateControllerIndicator();
+        });
 
         document.addEventListener('keydown', (e) => {
             // Сохраняем оригинальный ключ (Shift, Enter, Space) и lowercase версию для букв
