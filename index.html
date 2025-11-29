@@ -128,9 +128,9 @@
         }
         .hint { font-size: clamp(12px, 3vw, 14px); opacity: 0.75; margin-top: 15px; line-height: 1.4; }
 
-        /* Virtual Controls */
+        /* Virtual Controls - Hidden by default, shown on mobile landscape */
         #virtualControls {
-            display: none;
+            display: none !important;
             position: absolute;
             bottom: 10px;
             left: 10px;
@@ -217,8 +217,8 @@
             }
         }
 
-        /* ⭐ MOBILE LANDSCAPE OPTIMIZATION (v2.6.0) */
-        @media (max-width: 768px) and (orientation: landscape) {
+        /* ⭐ MOBILE LANDSCAPE OPTIMIZATION (v2.8.1) - WORKS ON IPHONE! */
+        @media (orientation: landscape) and (max-height: 500px) {
             body, html, .container {
                 width: 100vw;
                 height: 100vh;
@@ -226,11 +226,12 @@
                 max-height: 100vh;
                 overflow: hidden;
                 padding: 0;
+                margin: 0;
             }
 
             .container {
                 flex-direction: row;
-                padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+                padding: 0;
             }
 
             #gameCanvas {
@@ -281,58 +282,59 @@
                 margin: 6px 4px;
             }
 
-            /* ⭐ v2.8.0: SIMPLE RELIABLE D-PAD + ACTION BUTTONS */
+            /* ⭐ v2.8.1: VISIBLE MOBILE CONTROLS */
             #virtualControls {
                 display: flex !important;
                 position: fixed;
-                width: 100%;
-                height: 100%;
+                top: 0;
                 left: 0;
-                bottom: 0;
-                z-index: 999;
+                width: 100vw;
+                height: 100vh;
+                z-index: 998;
                 flex-direction: row;
                 justify-content: space-between;
                 align-items: flex-end;
-                padding: env(safe-area-inset-top, 10px) env(safe-area-inset-right, 10px) env(safe-area-inset-bottom, 10px) env(safe-area-inset-left, 10px);
-                gap: 15px;
+                padding: max(5px, env(safe-area-inset-top)) max(5px, env(safe-area-inset-right)) max(5px, env(safe-area-inset-bottom)) max(5px, env(safe-area-inset-left));
+                gap: 8px;
                 pointer-events: none;
+                background: transparent;
             }
 
             /* D-PAD CONTAINER - LEFT SIDE */
             .dpad-container {
                 display: flex;
                 flex-direction: column;
-                gap: 5px;
+                gap: 3px;
                 pointer-events: auto;
-                padding-bottom: 10px;
+                padding-bottom: 5px;
             }
 
             .dpad-row {
                 display: flex;
-                gap: 5px;
+                gap: 3px;
                 justify-content: center;
             }
 
             .dpad-center {
-                width: 50px;
-                height: 50px;
+                width: 40px;
+                height: 40px;
             }
 
-            /* D-PAD BUTTONS */
+            /* D-PAD BUTTONS - SMALLER FOR MOBILE */
             .dpad-btn {
-                width: 50px;
-                height: 50px;
+                width: 40px;
+                height: 40px;
                 padding: 0;
-                border: 2px solid rgba(255, 255, 255, 0.6);
-                border-radius: 8px;
-                background: linear-gradient(135deg, rgba(255, 107, 107, 0.8), rgba(255, 107, 107, 0.5));
+                border: 2px solid rgba(255, 255, 255, 0.8);
+                border-radius: 6px;
+                background: linear-gradient(135deg, rgba(255, 107, 107, 0.9), rgba(255, 107, 107, 0.7));
                 color: white;
-                font-size: 20px;
+                font-size: 16px;
                 font-weight: bold;
                 cursor: pointer;
                 touch-action: manipulation;
-                transition: all 0.1s ease;
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+                transition: all 0.08s ease;
+                box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5);
                 display: flex;
                 align-items: center;
                 justify-content: center;
@@ -340,35 +342,37 @@
                 user-select: none;
                 -webkit-touch-callout: none;
                 outline: none;
+                min-height: 40px;
+                min-width: 40px;
             }
 
             .dpad-btn:active {
-                transform: scale(0.9);
-                background: linear-gradient(135deg, rgba(255, 60, 60, 0.9), rgba(255, 60, 60, 0.7));
-                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+                transform: scale(0.95);
+                background: linear-gradient(135deg, rgba(255, 60, 60, 1), rgba(255, 60, 60, 0.8));
+                box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
             }
 
-            /* ACTION BUTTONS - RIGHT SIDE (2x2 GRID) */
+            /* ACTION BUTTONS - RIGHT SIDE (2x2 GRID) - SMALLER */
             .action-buttons {
                 display: grid;
-                grid-template-columns: 60px 60px;
-                gap: 10px;
+                grid-template-columns: 45px 45px;
+                gap: 5px;
                 pointer-events: auto;
-                padding-bottom: 10px;
+                padding-bottom: 5px;
             }
 
             .action-btn {
-                width: 60px;
-                height: 60px;
+                width: 45px;
+                height: 45px;
                 padding: 0;
-                border: none;
-                border-radius: 8px;
-                font-size: 24px;
+                border: 2px solid rgba(255, 255, 255, 0.8);
+                border-radius: 6px;
+                font-size: 18px;
                 font-weight: bold;
                 cursor: pointer;
                 touch-action: manipulation;
-                transition: all 0.1s ease;
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+                transition: all 0.08s ease;
+                box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5);
                 display: flex;
                 align-items: center;
                 justify-content: center;
@@ -376,35 +380,29 @@
                 user-select: none;
                 -webkit-touch-callout: none;
                 outline: none;
-                background: linear-gradient(135deg, rgba(100, 150, 255, 0.8), rgba(100, 150, 255, 0.5));
-                border: 2px solid rgba(150, 200, 255, 0.6);
+                min-height: 45px;
+                min-width: 45px;
             }
 
             #btn-space {
-                background: linear-gradient(135deg, rgba(100, 150, 255, 0.8), rgba(100, 150, 255, 0.5));
-                border-color: rgba(150, 200, 255, 0.6);
+                background: linear-gradient(135deg, rgba(100, 150, 255, 0.9), rgba(100, 150, 255, 0.7));
             }
 
             #btn-tab {
-                background: linear-gradient(135deg, rgba(150, 100, 255, 0.8), rgba(150, 100, 255, 0.5));
-                border-color: rgba(200, 150, 255, 0.6);
+                background: linear-gradient(135deg, rgba(150, 100, 255, 0.9), rgba(150, 100, 255, 0.7));
             }
 
             #btn-shift {
-                background: linear-gradient(135deg, rgba(255, 200, 100, 0.8), rgba(255, 200, 100, 0.5));
-                border-color: rgba(255, 220, 150, 0.6);
-                border: 2px solid rgba(255, 220, 150, 0.6);
+                background: linear-gradient(135deg, rgba(255, 200, 100, 0.9), rgba(255, 200, 100, 0.7));
             }
 
             #btn-e {
-                background: linear-gradient(135deg, rgba(107, 203, 119, 0.8), rgba(107, 203, 119, 0.5));
-                border-color: rgba(150, 230, 160, 0.6);
-                border: 2px solid rgba(150, 230, 160, 0.6);
+                background: linear-gradient(135deg, rgba(107, 203, 119, 0.9), rgba(107, 203, 119, 0.7));
             }
 
             .action-btn:active {
-                transform: scale(0.9);
-                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+                transform: scale(0.95);
+                box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
             }
 
             /* Mobile landscape specific - hide hint on small screens */
@@ -627,7 +625,7 @@
 
     <script>
         // ==================== ВЕРСИЯ ИГРЫ ====================
-        const GAME_VERSION = '2.8.0'; // FIXED: Removed complex joystick, replaced with simple reliable D-pad + action buttons
+        const GAME_VERSION = '2.8.1'; // FIXED: Mobile controls now visible on iPhone - smaller buttons, better media queries
 
         // ==================== CROSS-PLATFORM & MOBILE SUPPORT ====================
         const isTouchDevice = () => (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0));
