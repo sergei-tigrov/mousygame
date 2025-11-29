@@ -2864,7 +2864,15 @@
                 }
 
                 // КНОПКИ
-                if (gamepad.buttons[0]?.pressed) newState['Space'] = true;  // X = Пауза
+                // X кнопка - Пауза в игре ИЛИ Start Game в меню
+                if (gamepad.buttons[0]?.pressed) {
+                    const isMenuOpen = (DOM.menuScreen?.classList.contains('active')) === true;
+                    if (isMenuOpen && !gameState.isRunning) {
+                        startGame();  // ⭐ Запустить игру через контроллер
+                    } else {
+                        newState['Space'] = true;  // Пауза в игре
+                    }
+                }
                 if (gamepad.buttons[1]?.pressed) newState['e'] = true;       // O = Норка
                 if (gamepad.buttons[2]?.pressed) newState['Tab'] = true;     // △ = Переключить
                 if (gamepad.buttons[3]?.pressed) newState['Shift'] = true;   // □ = Спринт
