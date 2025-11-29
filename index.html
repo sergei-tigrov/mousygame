@@ -281,7 +281,7 @@
                 margin: 6px 4px;
             }
 
-            /* ⭐ v2.7.0: PROFESSIONAL JOYSTICK CONTROLS */
+            /* ⭐ v2.8.0: SIMPLE RELIABLE D-PAD + ACTION BUTTONS */
             #virtualControls {
                 display: flex !important;
                 position: fixed;
@@ -293,72 +293,41 @@
                 flex-direction: row;
                 justify-content: space-between;
                 align-items: flex-end;
-                padding: 10px env(safe-area-inset-right, 10px) env(safe-area-inset-bottom, 10px) env(safe-area-inset-left, 10px);
-                gap: 20px;
+                padding: env(safe-area-inset-top, 10px) env(safe-area-inset-right, 10px) env(safe-area-inset-bottom, 10px) env(safe-area-inset-left, 10px);
+                gap: 15px;
                 pointer-events: none;
             }
 
-            /* JOYSTICK AREA - LEFT SIDE */
-            .joystick-area {
+            /* D-PAD CONTAINER - LEFT SIDE */
+            .dpad-container {
                 display: flex;
-                align-items: flex-end;
-                justify-content: center;
-                height: 160px;
-                width: 160px;
+                flex-direction: column;
+                gap: 5px;
                 pointer-events: auto;
+                padding-bottom: 10px;
             }
 
-            .joystick-base {
-                position: relative;
-                width: 120px;
-                height: 120px;
-                border-radius: 50%;
-                background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.15));
-                border: 3px solid rgba(255, 255, 255, 0.3);
-                box-shadow: 0 0 20px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(0, 0, 0, 0.3);
+            .dpad-row {
                 display: flex;
-                align-items: center;
+                gap: 5px;
                 justify-content: center;
             }
 
-            .joystick-stick {
-                position: absolute;
-                width: 60px;
-                height: 60px;
-                border-radius: 50%;
-                background: radial-gradient(circle at 35% 35%, rgba(255, 107, 107, 0.9), rgba(255, 107, 107, 0.6));
+            .dpad-center {
+                width: 50px;
+                height: 50px;
+            }
+
+            /* D-PAD BUTTONS */
+            .dpad-btn {
+                width: 50px;
+                height: 50px;
+                padding: 0;
                 border: 2px solid rgba(255, 255, 255, 0.6);
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), inset 0 2px 4px rgba(255, 255, 255, 0.3);
-                cursor: grab;
-                transition: box-shadow 0.1s ease;
-                transform: translate(0, 0);
-                user-select: none;
-                -webkit-user-select: none;
-                -webkit-touch-callout: none;
-            }
-
-            .joystick-stick.active {
-                box-shadow: 0 0 20px rgba(255, 107, 107, 0.8), 0 4px 12px rgba(0, 0, 0, 0.5);
-                cursor: grabbing;
-            }
-
-            /* ACTION BUTTONS - RIGHT SIDE */
-            .action-buttons {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 12px;
-                padding-right: 10px;
-                pointer-events: auto;
-                align-content: flex-end;
-                height: 160px;
-            }
-
-            .action-btn {
-                width: 70px;
-                height: 70px;
-                border: none;
-                border-radius: 12px;
-                font-size: 28px;
+                border-radius: 8px;
+                background: linear-gradient(135deg, rgba(255, 107, 107, 0.8), rgba(255, 107, 107, 0.5));
+                color: white;
+                font-size: 20px;
                 font-weight: bold;
                 cursor: pointer;
                 touch-action: manipulation;
@@ -370,43 +339,72 @@
                 -webkit-user-select: none;
                 user-select: none;
                 -webkit-touch-callout: none;
+                outline: none;
+            }
+
+            .dpad-btn:active {
+                transform: scale(0.9);
+                background: linear-gradient(135deg, rgba(255, 60, 60, 0.9), rgba(255, 60, 60, 0.7));
+                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+            }
+
+            /* ACTION BUTTONS - RIGHT SIDE (2x2 GRID) */
+            .action-buttons {
+                display: grid;
+                grid-template-columns: 60px 60px;
+                gap: 10px;
+                pointer-events: auto;
+                padding-bottom: 10px;
+            }
+
+            .action-btn {
+                width: 60px;
+                height: 60px;
+                padding: 0;
+                border: none;
+                border-radius: 8px;
+                font-size: 24px;
+                font-weight: bold;
+                cursor: pointer;
+                touch-action: manipulation;
+                transition: all 0.1s ease;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                -webkit-user-select: none;
+                user-select: none;
+                -webkit-touch-callout: none;
+                outline: none;
+                background: linear-gradient(135deg, rgba(100, 150, 255, 0.8), rgba(100, 150, 255, 0.5));
+                border: 2px solid rgba(150, 200, 255, 0.6);
+            }
+
+            #btn-space {
+                background: linear-gradient(135deg, rgba(100, 150, 255, 0.8), rgba(100, 150, 255, 0.5));
+                border-color: rgba(150, 200, 255, 0.6);
+            }
+
+            #btn-tab {
+                background: linear-gradient(135deg, rgba(150, 100, 255, 0.8), rgba(150, 100, 255, 0.5));
+                border-color: rgba(200, 150, 255, 0.6);
+            }
+
+            #btn-shift {
+                background: linear-gradient(135deg, rgba(255, 200, 100, 0.8), rgba(255, 200, 100, 0.5));
+                border-color: rgba(255, 220, 150, 0.6);
+                border: 2px solid rgba(255, 220, 150, 0.6);
+            }
+
+            #btn-e {
+                background: linear-gradient(135deg, rgba(107, 203, 119, 0.8), rgba(107, 203, 119, 0.5));
+                border-color: rgba(150, 230, 160, 0.6);
+                border: 2px solid rgba(150, 230, 160, 0.6);
             }
 
             .action-btn:active {
                 transform: scale(0.9);
-                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-            }
-
-            /* Primary Action - Pause */
-            .action-primary {
-                background: linear-gradient(135deg, rgba(100, 150, 255, 0.8), rgba(100, 150, 255, 0.6));
-                border: 2px solid rgba(150, 200, 255, 0.6);
-                grid-column: 1;
-                grid-row: 1;
-            }
-
-            /* Secondary Action - Mouse Select */
-            .action-secondary {
-                background: linear-gradient(135deg, rgba(150, 100, 255, 0.8), rgba(150, 100, 255, 0.6));
-                border: 2px solid rgba(200, 150, 255, 0.6);
-                grid-column: 2;
-                grid-row: 1;
-            }
-
-            /* Sprint - Shift */
-            .action-sprint {
-                background: linear-gradient(135deg, rgba(255, 200, 100, 0.8), rgba(255, 200, 100, 0.6));
-                border: 2px solid rgba(255, 220, 150, 0.6);
-                grid-column: 1;
-                grid-row: 2;
-            }
-
-            /* Burrow - E key */
-            .action-burrow {
-                background: linear-gradient(135deg, rgba(107, 203, 119, 0.8), rgba(107, 203, 119, 0.6));
-                border: 2px solid rgba(150, 230, 160, 0.6);
-                grid-column: 2;
-                grid-row: 2;
+                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
             }
 
             /* Mobile landscape specific - hide hint on small screens */
@@ -472,26 +470,30 @@
 <body>
     <div class="container">
         <canvas id="gameCanvas"></canvas>
-        <!-- ⭐ v2.7.0: ПРОФЕССИОНАЛЬНЫЙ ВИРТУАЛЬНЫЙ ДЖОЙСТИК -->
-        <div id="virtualControls" class="joystick-container">
-            <!-- ЛЕВАЯ СТОРОНА: АНАЛОГОВЫЙ ДЖОЙСТИК -->
-            <div class="joystick-area">
-                <div class="joystick-base" id="joystickBase">
-                    <div class="joystick-stick" id="joystickStick"></div>
+        <!-- ⭐ v2.8.0: ПРОСТОЙ НАДЕЖНЫЙ D-PAD + ACTION BUTTONS -->
+        <div id="virtualControls" class="mobile-controls-container">
+            <!-- ЛЕВАЯ СТОРОНА: ПРОСТОЙ D-PAD (4 направления) -->
+            <div class="dpad-container">
+                <!-- UP -->
+                <button class="dpad-btn dpad-up" id="btn-up" data-key="ArrowUp" title="ВВЕРХ">▲</button>
+
+                <!-- LEFT, CENTER SPACER, RIGHT -->
+                <div class="dpad-row">
+                    <button class="dpad-btn dpad-left" id="btn-left" data-key="ArrowLeft" title="ВЛЕВО">◀</button>
+                    <div class="dpad-center"></div>
+                    <button class="dpad-btn dpad-right" id="btn-right" data-key="ArrowRight" title="ВПРАВО">▶</button>
                 </div>
+
+                <!-- DOWN -->
+                <button class="dpad-btn dpad-down" id="btn-down" data-key="ArrowDown" title="ВНИЗ">▼</button>
             </div>
 
-            <!-- ПРАВАЯ СТОРОНА: ACTION BUTTONS -->
+            <!-- ПРАВАЯ СТОРОНА: ACTION BUTTONS (2x2 GRID) -->
             <div class="action-buttons">
-                <!-- Row 1: Pause and Mouse Select -->
-                <button class="action-btn action-primary" id="btn-space" data-key="Space" title="ПАУЗА">⏸️</button>
-                <button class="action-btn action-secondary" id="btn-tab" data-key="Tab" title="ВЫБРАТЬ МЫШЬ">🐭</button>
-
-                <!-- Row 2: Sprint -->
-                <button class="action-btn action-sprint" id="btn-shift" data-key="Shift" title="СПРИНТ">⚡</button>
-
-                <!-- Row 3: Burrow (E key) -->
-                <button class="action-btn action-burrow" id="btn-e" data-key="e" title="НОРКА">🏠</button>
+                <button class="action-btn" id="btn-space" data-key="Space" title="ПАУЗА">⏸️</button>
+                <button class="action-btn" id="btn-tab" data-key="Tab" title="МЫШЬ">🐭</button>
+                <button class="action-btn" id="btn-shift" data-key="Shift" title="СПРИНТ">⚡</button>
+                <button class="action-btn" id="btn-e" data-key="e" title="НОРКА">🏠</button>
             </div>
         </div>
         <div class="ui-overlay">
@@ -625,7 +627,7 @@
 
     <script>
         // ==================== ВЕРСИЯ ИГРЫ ====================
-        const GAME_VERSION = '2.7.1'; // FIXED: Professional virtual joystick - analog stick + action buttons
+        const GAME_VERSION = '2.8.0'; // FIXED: Removed complex joystick, replaced with simple reliable D-pad + action buttons
 
         // ==================== CROSS-PLATFORM & MOBILE SUPPORT ====================
         const isTouchDevice = () => (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0));
@@ -2180,60 +2182,64 @@
         // ==================== УПРАВЛЕНИЕ ====================
         // Touch controls for mobile
         // ⭐ v2.7.1: ОБНОВЛЕННАЯ ОБРАБОТКА ACTION BUTTONS
+        // ⭐ v2.8.0: ПРОСТАЯ И НАДЕЖНАЯ ОБРАБОТКА УПРАВЛЕНИЯ
         function setupTouchControls() {
-            console.log('⏱️ Инициализация action button handlers...');
+            console.log('🎮 Инициализация мобильных кнопок...');
+
             const virtualControls = document.getElementById('virtualControls');
             if (!virtualControls) {
-                console.warn('⚠️ virtualControls не найден');
+                console.warn('⚠️ virtualControls не найден - управление может быть недоступно');
                 return;
             }
 
-            // Обработка action buttons (новая структура v2.7.0+)
-            const actionButtons = virtualControls.querySelectorAll('.action-btn');
-            console.log(`✅ Найдено ${actionButtons.length} action buttons`);
+            // Получаем все кнопки управления (D-pad + action buttons)
+            const allButtons = virtualControls.querySelectorAll('[data-key]');
+            console.log(`✅ Найдено ${allButtons.length} кнопок управления`);
 
-            actionButtons.forEach(btn => {
+            allButtons.forEach(btn => {
                 const key = btn.dataset.key;
-                console.log(`📌 Обработка button: ${btn.textContent} (key: ${key})`);
+                if (!key) return;
 
-                // Touch handlers
+                // Touchstart - нажатие кнопки
                 btn.addEventListener('touchstart', (e) => {
                     e.preventDefault();
                     input.keys[key] = true;
-                    console.log(`👆 Action button PRESSED: ${key}`);
                 }, { passive: false });
 
+                // Touchend - отпускание кнопки
                 btn.addEventListener('touchend', (e) => {
                     e.preventDefault();
                     input.keys[key] = false;
-                    console.log(`👆 Action button RELEASED: ${key}`);
                 }, { passive: false });
 
-                // Mouse handlers for testing
-                btn.addEventListener('mousedown', () => {
+                // Mousedown - для тестирования на десктопе
+                btn.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
                     input.keys[key] = true;
                 });
 
-                btn.addEventListener('mouseup', () => {
+                // Mouseup - для десктопа
+                btn.addEventListener('mouseup', (e) => {
+                    e.preventDefault();
                     input.keys[key] = false;
                 });
 
+                // Mouseleave - если вышли из элемента
                 btn.addEventListener('mouseleave', () => {
                     input.keys[key] = false;
                 });
 
-                // Click handler for fallback (некоторые браузеры)
-                btn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    // Simulate key press
+                // Pointerdown/pointerup - более универсальный подход для некоторых браузеров
+                btn.addEventListener('pointerdown', (e) => {
                     input.keys[key] = true;
-                    setTimeout(() => {
-                        input.keys[key] = false;
-                    }, 50);
-                });
+                }, { passive: true });
+
+                btn.addEventListener('pointerup', (e) => {
+                    input.keys[key] = false;
+                }, { passive: true });
             });
 
-            console.log('✅ Action button handlers инициализированы');
+            console.log('✅ Все кнопки инициализированы успешно');
         }
 
         // ⭐ МОБИЛЬНАЯ ОПТИМИЗАЦИЯ МЕНЮ КНОПОК
@@ -2458,163 +2464,6 @@
             }, { passive: false });
 
             console.log('✅ Mobile input handlers установлены');
-        }
-
-        // ⭐ v2.7.0: PROFESSIONAL VIRTUAL JOYSTICK HANDLER
-        function setupJoystick() {
-            console.log('🕹️ Инициализация virtual joystick...');
-
-            const joystickBase = document.getElementById('joystickBase');
-            const joystickStick = document.getElementById('joystickStick');
-
-            if (!joystickBase || !joystickStick) {
-                console.error('❌ Joystick elements not found');
-                return;
-            }
-
-            let isJoystickActive = false;
-            let touchId = null;
-            const maxDistance = 50; // Maximum distance stick can move from center
-
-            // Get joystick dimensions for calculations
-            function getJoystickBounds() {
-                const rect = joystickBase.getBoundingClientRect();
-                return {
-                    centerX: rect.left + rect.width / 2,
-                    centerY: rect.top + rect.height / 2,
-                    radius: rect.width / 2
-                };
-            }
-
-            // Calculate angle and distance from touch point to joystick center
-            function getJoystickInput(touchX, touchY) {
-                const bounds = getJoystickBounds();
-                const deltaX = touchX - bounds.centerX;
-                const deltaY = touchY - bounds.centerY;
-                const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-
-                if (distance === 0) return { angle: 0, distance: 0, x: 0, y: 0 };
-
-                const angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
-                const clampedDistance = Math.min(distance, maxDistance);
-                const ratio = clampedDistance / maxDistance;
-
-                return {
-                    angle: angle,
-                    distance: clampedDistance,
-                    ratio: ratio,
-                    x: (deltaX / distance) * clampedDistance,
-                    y: (deltaY / distance) * clampedDistance
-                };
-            }
-
-            // Update stick visual position
-            function updateStickVisual(joystickInput) {
-                const x = joystickInput.x;
-                const y = joystickInput.y;
-                joystickStick.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
-            }
-
-            // Convert joystick angle to key presses
-            function updateInputFromJoystick(joystickInput) {
-                // Clear all arrow keys first
-                input.keys['ArrowUp'] = false;
-                input.keys['ArrowDown'] = false;
-                input.keys['ArrowLeft'] = false;
-                input.keys['ArrowRight'] = false;
-
-                if (joystickInput.distance < 15) return; // Dead zone
-
-                const angle = joystickInput.angle;
-
-                // Define 8-directional input based on angle
-                // Right: 0°, Down-Right: 45°, Down: 90°, Down-Left: 135°, Left: 180°, Up-Left: -135°, Up: -90°, Up-Right: -45°
-                const directions = [
-                    { min: -22.5, max: 22.5, keys: ['ArrowRight'] },
-                    { min: 22.5, max: 67.5, keys: ['ArrowDown', 'ArrowRight'] },
-                    { min: 67.5, max: 112.5, keys: ['ArrowDown'] },
-                    { min: 112.5, max: 157.5, keys: ['ArrowDown', 'ArrowLeft'] },
-                    { min: 157.5, max: 180, keys: ['ArrowLeft'] },
-                    { min: -157.5, max: -112.5, keys: ['ArrowLeft'] },
-                    { min: -112.5, max: -67.5, keys: ['ArrowUp', 'ArrowLeft'] },
-                    { min: -67.5, max: -22.5, keys: ['ArrowUp'] },
-                    { min: -22.5, max: 22.5, keys: ['ArrowUp', 'ArrowRight'] }
-                ];
-
-                for (let dir of directions) {
-                    if (angle >= dir.min && angle <= dir.max) {
-                        dir.keys.forEach(key => {
-                            input.keys[key] = true;
-                        });
-                        break;
-                    }
-                }
-            }
-
-            // Handle touch start
-            function handleTouchStart(e) {
-                if (isJoystickActive) return;
-
-                const touch = e.touches[0];
-                const bounds = joystickBase.getBoundingClientRect();
-                const distance = Math.sqrt(
-                    Math.pow(touch.clientX - (bounds.left + bounds.width / 2), 2) +
-                    Math.pow(touch.clientY - (bounds.top + bounds.height / 2), 2)
-                );
-
-                if (distance < bounds.width / 2 + 20) {
-                    isJoystickActive = true;
-                    touchId = touch.identifier;
-                    joystickStick.classList.add('active');
-                    handleTouchMove(e);
-                }
-            }
-
-            // Handle touch move
-            function handleTouchMove(e) {
-                if (!isJoystickActive || touchId === null) return;
-
-                let touchFound = false;
-                for (let touch of e.touches) {
-                    if (touch.identifier === touchId) {
-                        touchFound = true;
-                        const joystickInput = getJoystickInput(touch.clientX, touch.clientY);
-                        updateStickVisual(joystickInput);
-                        updateInputFromJoystick(joystickInput);
-                        break;
-                    }
-                }
-
-                if (!touchFound) {
-                    handleTouchEnd(e);
-                }
-            }
-
-            // Handle touch end
-            function handleTouchEnd(e) {
-                for (let touch of e.changedTouches) {
-                    if (touch.identifier === touchId) {
-                        isJoystickActive = false;
-                        touchId = null;
-                        joystickStick.classList.remove('active');
-                        joystickStick.style.transform = 'translate(0, 0)';
-
-                        // Clear all arrow keys
-                        input.keys['ArrowUp'] = false;
-                        input.keys['ArrowDown'] = false;
-                        input.keys['ArrowLeft'] = false;
-                        input.keys['ArrowRight'] = false;
-                        break;
-                    }
-                }
-            }
-
-            // Add event listeners
-            document.addEventListener('touchstart', handleTouchStart, { passive: true });
-            document.addEventListener('touchmove', handleTouchMove, { passive: true });
-            document.addEventListener('touchend', handleTouchEnd, { passive: true });
-
-            console.log('✅ Virtual joystick инициализирован');
         }
 
         // Handle device orientation changes
@@ -2857,14 +2706,6 @@
                 // ⭐ v2.6.0: Инициализируем мобильную оптимизацию (ориентация, input handlers)
                 initMobileOptimization();
                 setupMobileInputHandlers();
-
-                // ⭐ v2.7.0: Инициализируем профессиональный джойстик
-                try {
-                    setupJoystick();
-                } catch (joystickError) {
-                    console.error('⚠️ Ошибка инициализации joystick:', joystickError.message);
-                    console.log('✅ Игра продолжит работать с action buttons вместо joystick');
-                }
             }
 
             // iOS/Safari specific fixes
