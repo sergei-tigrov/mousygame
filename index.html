@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="ru">
-<!-- 🎮 v3.2.0: FULL REFACTOR + OPTIMIZATION - Updated 2025-11-30 -->
+<!-- 🎮 v3.2.1: DELTATIME NORMALIZATION FOR DIFFERENT SCREEN REFRESH RATES - Updated 2025-11-30 -->
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
@@ -513,7 +513,7 @@
             <div class="menu-content">
                 <div class="title">🐭 МЫШИНЫЕ ПРЯТКИ 👀</div>
                 <p>Помоги мышкам спрятаться от кошек!</p>
-                <p style="font-size: 11px; opacity: 0.6; margin-bottom: 10px;">Версия <span id="versionDisplay">3.2.0</span></p>
+                <p style="font-size: 11px; opacity: 0.6; margin-bottom: 10px;">Версия <span id="versionDisplay">3.2.1</span></p>
                 <button class="button" onclick="startGame()">▶️ НАЧАТЬ ИГРУ</button>
                 <div class="hint" id="menuTip" style="
                     background: rgba(255, 255, 255, 0.1);
@@ -626,7 +626,7 @@
 
     <script>
         // ==================== ВЕРСИЯ ИГРЫ ====================
-        const GAME_VERSION = '3.2.0'; // ⭐ FULL OPTIMIZATION + BALANCE - Merged input cache, DOM cache, speed tuning
+        const GAME_VERSION = '3.2.1'; // ⭐ DELTATIME NORMALIZATION - Fix for 120Hz+ screens to maintain consistent speed
 
         // ==================== CROSS-PLATFORM & MOBILE SUPPORT ====================
         const isTouchDevice = () => (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0));
@@ -878,9 +878,10 @@
                 this.burrowHealingTimer = 0;
             }
 
-            update(grid, gameState, mergedInput) {
+            update(grid, gameState, mergedInput, deltaTime = 1) {
                 // ⭐ v3.2: ОПТИМИЗАЦИЯ - mergedInput передается из gameLoop (кэширован)
                 // Это исключает 8 ненужных вызовов getMergedInput() за кадр
+                // ⭐ v3.2.1: deltaTime нормализует движение для разных частот обновления экрана (60Hz, 120Hz, 144Hz)
                 const input = mergedInput || getMergedInput();  // Fallback для совместимости
 
                 if (!this.alive) return;
@@ -893,7 +894,8 @@
 
                 // ⭐ v3.2: Спринт активируется при Shift и stamina > 10
                 const isSprintActive = input.keys['Shift'] && this.stamina > 10;
-                const speed = isSprintActive ? CONFIG.mouseSprintSpeed : CONFIG.mouseSpeed;
+                // ⭐ v3.2.1: Применяем deltaTime к скорости для нормализации на разных частотах экрана
+                const speed = (isSprintActive ? CONFIG.mouseSprintSpeed : CONFIG.mouseSpeed) * deltaTime;
 
                 // DEBUG: Логируем скорость для выбранной мыши (каждые 5 сек)
                 if (isSelected && gameLoopSafetyCounter % 300 === 0 && (Object.keys(input.keys).length > 0)) {
@@ -905,20 +907,21 @@
                 if (input.keys['a'] || input.keys['ArrowLeft']) { this.vx -= speed; isMoving = true; }
                 if (input.keys['d'] || input.keys['ArrowRight']) { this.vx += speed; isMoving = true; }
 
-                // Выносливость
+                // Выносливость (⭐ v3.2.1: deltaTime применяется для временных параметров)
                 if (input.keys['Shift'] && isMoving && this.stamina > 0) {
-                    this.stamina -= CONFIG.staminaDecayRun;
-                    this.noiseLevel += 5;
-                    gameState.globalNoise += 3;
+                    this.stamina -= CONFIG.staminaDecayRun * deltaTime;
+                    this.noiseLevel += 5 * deltaTime;
+                    gameState.globalNoise += 3 * deltaTime;
                 } else if (isMoving && this.stamina < CONFIG.maxStamina) {
-                    this.noiseLevel += 2;
-                    gameState.globalNoise += 1;
-                    this.stamina = Math.min(this.stamina + CONFIG.staminaRecovery, CONFIG.maxStamina);
+                    this.noiseLevel += 2 * deltaTime;
+                    gameState.globalNoise += 1 * deltaTime;
+                    this.stamina = Math.min(this.stamina + CONFIG.staminaRecovery * deltaTime, CONFIG.maxStamina);
                 } else if (this.stamina < CONFIG.maxStamina) {
-                    this.stamina = Math.min(this.stamina + CONFIG.staminaRecovery, CONFIG.maxStamina);
+                    this.stamina = Math.min(this.stamina + CONFIG.staminaRecovery * deltaTime, CONFIG.maxStamina);
                 }
 
-                this.noiseLevel = Math.max(0, this.noiseLevel - CONFIG.noiseDecay);
+                // ⭐ v3.2.1: noiseDecay также зависит от deltaTime
+                this.noiseLevel = Math.max(0, this.noiseLevel - CONFIG.noiseDecay * deltaTime);
 
                 // Проверяем коллизии с препятствиями (используем spatial grid)
                 const nearbyObjects = gameState.grid.getNearby(this.x, this.y, 150);
@@ -1161,19 +1164,20 @@
                 return dx * dx + dy * dy < CONFIG.catHearingRange * CONFIG.catHearingRange && mouse.noiseLevel > 15;
             }
 
-            update(gameState) {
+            update(gameState, deltaTime = 1) {
+                // ⭐ v3.2.1: deltaTime нормализует движение кошек для разных частот экрана
                 this.vx *= CONFIG.friction;
                 this.vy *= CONFIG.friction;
-                this.alertLevel = Math.max(0, this.alertLevel - 1);
+                this.alertLevel = Math.max(0, this.alertLevel - 1 * deltaTime);
 
                 let angleDiff = this.targetDirection - this.direction;
                 if (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
                 if (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
-                this.direction += angleDiff * 0.1;
+                this.direction += angleDiff * 0.1 * deltaTime;
 
                 if (this.target && this.target.alive) {
-                    this.chaseTimer++;
-                    this.alertLevel = Math.min(this.alertLevel + 8, 100);
+                    this.chaseTimer += deltaTime;
+                    this.alertLevel = Math.min(this.alertLevel + 8 * deltaTime, 100);
                     const dx = this.target.x - this.x;
                     const dy = this.target.y - this.y;
                     const distSq = dx * dx + dy * dy;
@@ -1181,13 +1185,13 @@
                     if (distSq > 25) {
                         const dist = Math.sqrt(distSq);
                         const chaseSpeed = CONFIG.catChaseSpeed + (this.alertLevel / 100) * 0.5;
-                        this.vx += (dx / dist) * chaseSpeed;
-                        this.vy += (dy / dist) * chaseSpeed;
+                        this.vx += (dx / dist) * chaseSpeed * deltaTime;
+                        this.vy += (dy / dist) * chaseSpeed * deltaTime;
                         this.targetDirection = Math.atan2(dy, dx);
                     }
 
                     if (!this.canSee(this.target) && !this.canHear(this.target)) {
-                        this.chaseTimer++;
+                        this.chaseTimer += deltaTime;
                         if (this.chaseTimer > 200) {
                             this.target = null;
                             this.chaseTimer = 0;
@@ -1203,20 +1207,20 @@
 
                         if (distSq > 400) {
                             const dist = Math.sqrt(distSq);
-                            this.vx += (dx / dist) * CONFIG.catSpeed * 0.8;
-                            this.vy += (dy / dist) * CONFIG.catSpeed * 0.8;
+                            this.vx += (dx / dist) * CONFIG.catSpeed * 0.8 * deltaTime;
+                            this.vy += (dy / dist) * CONFIG.catSpeed * 0.8 * deltaTime;
                             this.targetDirection = Math.atan2(dy, dx);
                         } else {
                             this.lastSeenPosition = null;
                         }
                     } else {
-                        this.patrolTimer++;
+                        this.patrolTimer += deltaTime;
                         if (this.patrolTimer > 80) {
                             this.targetDirection = Math.random() * Math.PI * 2;
                             this.patrolTimer = 0;
                         }
-                        this.vx += Math.cos(this.targetDirection) * CONFIG.catSpeed * 0.3;
-                        this.vy += Math.sin(this.targetDirection) * CONFIG.catSpeed * 0.3;
+                        this.vx += Math.cos(this.targetDirection) * CONFIG.catSpeed * 0.3 * deltaTime;
+                        this.vy += Math.sin(this.targetDirection) * CONFIG.catSpeed * 0.3 * deltaTime;
                     }
                 }
 
@@ -1318,8 +1322,9 @@
                 this.bobbing = Math.random() * Math.PI * 2;
             }
 
-            update() {
-                this.bobbing += 0.05;
+            update(deltaTime = 1) {
+                // ⭐ v3.2.1: deltaTime нормализует анимацию для разных частот экрана
+                this.bobbing += 0.05 * deltaTime;
             }
 
             draw(ctx) {
@@ -2083,6 +2088,7 @@
         // ==================== ГЛАВНОЙ ЦИКЛ ====================
         let lastGameOverTime = 0;
         let gameLoopSafetyCounter = 0;
+        let lastFrameTime = performance.now();  // ⭐ v3.2.1: Для deltaTime расчета (исправляет скорость на 120Hz экранах)
 
         function gameLoop() {
             if (!gameState.isRunning) return;
@@ -2107,13 +2113,14 @@
 
             try {
                 const now = performance.now();
+                const deltaTime = Math.min((now - lastFrameTime) / 16.67, 2);  // ⭐ v3.2.1: Нормализуем к 60FPS (16.67ms per frame), макс 2x для безопасности
+                lastFrameTime = now;
+
                 fpsFrames++;
                 if (now - lastFpsTime >= 1000) {
                     gameState.fps = fpsFrames;
-                    // DEBUG: Предупредим если FPS не 60 (может объяснить проблемы со скоростью)
-                    if (Math.abs(fpsFrames - 60) > 5) {
-                        console.warn(`⚠️ FPS ABNORMAL: ${fpsFrames} (expected 60) - This may cause speed issues!`);
-                    }
+                    // DEBUG: Логируем актуальный deltaTime
+                    console.log(`📊 FPS: ${fpsFrames}, deltaTime: ${deltaTime.toFixed(2)}x (normalized to 60fps)`);
                     fpsFrames = 0;
                     lastFpsTime = now;
                 }
@@ -2136,18 +2143,20 @@
 
                 // Обновления
                 // ⭐ v3.2: Mouse.update() получает кэшированный mergedInput
+                // ⭐ v3.2.1: Передаем deltaTime для нормализации движения
                 for (let i = gameState.mice.length - 1; i >= 0; i--) {
-                    gameState.mice[i].update(gameState.grid, gameState, mergedInput);
+                    gameState.mice[i].update(gameState.grid, gameState, mergedInput, deltaTime);
                 }
                 for (let i = gameState.cats.length - 1; i >= 0; i--) {
-                    gameState.cats[i].update(gameState);
+                    gameState.cats[i].update(gameState, deltaTime);
                 }
                 for (let i = gameState.cheese.length - 1; i >= 0; i--) {
-                    gameState.cheese[i].update();
+                    gameState.cheese[i].update(deltaTime);
                 }
                 gameState.particles.update();
 
-                gameState.globalNoise = Math.max(0, gameState.globalNoise - 0.8);
+                // ⭐ v3.2.1: globalNoise также зависит от deltaTime
+                gameState.globalNoise = Math.max(0, gameState.globalNoise - 0.8 * deltaTime);
 
                 // Отрисовка
                 for (let i = 0; i < gameState.obstacles.length; i++) {
