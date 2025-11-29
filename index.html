@@ -666,7 +666,7 @@
 
     <script>
         // ==================== ВЕРСИЯ ИГРЫ ====================
-        const GAME_VERSION = '3.2.5'; // ⭐ INPUT + PHYSICS FIX - Clean input on state transitions + exponential friction for deltaTime
+        const GAME_VERSION = '3.5.0'; // ⭐ SOUND GENERATOR REFACTOR - Replaced 217-line switch with SOUND_GENERATORS object, massive code cleanup
 
         // ==================== CROSS-PLATFORM & MOBILE SUPPORT ====================
         const isTouchDevice = () => (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0));
@@ -681,6 +681,43 @@
 
         // ✅ Определяем тип устройства один раз при загрузке
         const CURRENT_DEVICE = isMobileDevice() || isTouchDevice() ? DEVICE_TYPE.MOBILE : DEVICE_TYPE.DESKTOP;
+
+        // ⭐ v3.3.0: UNIFIED DOM ELEMENT CACHE - Избегаем 62+ getElementById calls
+        // Инициализируется один раз при загрузке страницы
+        const DOM = {};
+        function initDOMCache() {
+            DOM.gameCanvas = DOM.gameCanvas;
+            DOM.canvas = DOM.gameCanvas;  // Альтернативное имя для совместимости
+            DOM.gameOverScreen = DOM.gameOverScreen;
+            DOM.pauseScreen = DOM.pauseScreen;
+            DOM.levelCompleteScreen = DOM.levelCompleteScreen;
+            DOM.menuScreen = DOM.menuScreen;
+            DOM.virtualControls = DOM.virtualControls;
+            DOM.playerName = DOM.playerName;
+            DOM.leaderboardScreen = DOM.leaderboardScreen;
+            DOM.leaderboardContent = DOM.leaderboardContent;
+            DOM.scoreInputPanel = DOM.scoreInputPanel;
+            DOM.levelNumber = DOM.levelNumber;
+            DOM.cheeseCount = DOM.cheeseCount;
+            DOM.totalCheese = DOM.totalCheese;
+            DOM.miceCount = DOM.miceCount;
+            DOM.miceHP = DOM.miceHP;
+            DOM.stamina = DOM.stamina;
+            DOM.fps = DOM.fps;
+            DOM.controls = DOM.controls;
+            DOM.controllerIndicator = DOM.controllerIndicator;
+            DOM.versionDisplay = DOM.versionDisplay;
+            DOM.statsPanel = DOM.statsPanel;
+            DOM.silentAudio = DOM.silentAudio;
+            DOM.orientationPrompt = DOM.orientationPrompt;
+            DOM.gameOverText = DOM.gameOverText;
+            DOM.levelCompleteText = DOM.levelCompleteText;
+            DOM.menuTip = DOM.menuTip;
+            DOM.audioToggleBtn = DOM.audioToggleBtn;
+            DOM.viewportMeta = document.querySelector('meta[name="viewport"]');
+        }
+        // Инициализируем кэш сразу, не дожидаясь load event
+        initDOMCache();
 
         let devicePixelRatio = window.devicePixelRatio || 1;
         let lastOrientationCheck = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
@@ -1427,14 +1464,14 @@
         }
 
         function displayTip() {
-            const tipElement = document.getElementById('menuTip');
+            const tipElement = DOM.menuTip;
             if (tipElement) {
                 tipElement.textContent = getNextTip();
             }
         }
 
         function rotateTip() {
-            const tipElement = document.getElementById('menuTip');
+            const tipElement = DOM.menuTip;
             if (tipElement) {
                 tipElement.style.animation = 'none';
                 setTimeout(() => {
@@ -1475,7 +1512,7 @@
 
         function displayLeaderboard() {
             const leaderboard = getLeaderboard();
-            const content = document.getElementById('leaderboardContent');
+            const content = DOM.leaderboardContent;
 
             if (leaderboard.length === 0) {
                 content.innerHTML = '<p style="text-align: center; opacity: 0.7;">Рейтинг пуст. Будь первым! 🎯</p>';
@@ -1504,19 +1541,19 @@
 
         function showLeaderboard() {
             playSound('button');
-            document.getElementById('gameOverScreen').style.display = 'none';
-            document.getElementById('leaderboardScreen').style.display = 'flex';
+            DOM.gameOverScreen.style.display = 'none';
+            DOM.leaderboardScreen.style.display = 'flex';
             displayLeaderboard();
         }
 
         function hideLeaderboard() {
             playSound('button');
-            document.getElementById('leaderboardScreen').style.display = 'none';
-            document.getElementById('gameOverScreen').style.display = 'flex';
+            DOM.leaderboardScreen.style.display = 'none';
+            DOM.gameOverScreen.style.display = 'flex';
         }
 
         function saveScore() {
-            const playerName = document.getElementById('playerName').value;
+            const playerName = DOM.playerName.value;
             if (playerName.trim()) {
                 playSound('button');
                 addScore(playerName, gameState.score, gameState.currentLevel);
@@ -1526,8 +1563,8 @@
 
         function skipScoreSave() {
             playSound('button');
-            document.getElementById('scoreInputPanel').style.display = 'none';
-            document.getElementById('playerName').value = '';
+            DOM.scoreInputPanel.style.display = 'none';
+            DOM.playerName.value = '';
         }
 
         // УДАЛЕНО: displayGameStats() - больше не нужна, HTML строится прямо в game loop
@@ -1722,57 +1759,8 @@
 
         // ⭐ v3.2.3: Toggle звука
         // ⭐ v3.2.3: Разблокировка Web Audio на iOS Safari (mute switch проблема)
-        // ⭐ v3.2.4: Простой тест Web Audio API для Safari
-        function testWebAudio() {
-            console.log('🔊 === TESTING WEB AUDIO API ===');
-            
-            try {
-                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-                if (!AudioContextClass) {
-                    console.error('❌ Web Audio API not supported');
-                    return;
-                }
-                
-                const ctx = new AudioContextClass();
-                console.log(`✅ AudioContext created: ${ctx.state}`);
-                
-                // Простой тест
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                
-                osc.frequency.value = 440;
-                gain.gain.value = 0.3;
-                
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                
-                console.log(`✅ Oscillator frequency: ${osc.frequency.value}Hz`);
-                console.log(`✅ Gain value: ${gain.gain.value}`);
-                console.log(`✅ Ready to start`);
-                
-                // Попытка resume и play
-                if (ctx.state === 'suspended') {
-                    console.log('⚠️ Context suspended, trying resume...');
-                    ctx.resume().then(() => {
-                        console.log(`✅ Context resumed: ${ctx.state}`);
-                        osc.start(ctx.currentTime);
-                        osc.stop(ctx.currentTime + 0.5);
-                        console.log('🎵 Sound should be playing for 0.5s...');
-                    }).catch(e => {
-                        console.error(`❌ Resume error: ${e.message}`);
-                    });
-                } else {
-                    osc.start(ctx.currentTime);
-                    osc.stop(ctx.currentTime + 0.5);
-                    console.log('🎵 Sound should be playing for 0.5s...');
-                }
-            } catch (e) {
-                console.error(`❌ Error: ${e.message}`);
-            }
-        }
-
         function unmuteIOSSafari() {
-            const silentAudio = document.getElementById('silentAudio');
+            const silentAudio = DOM.silentAudio;
             if (silentAudio) {
                 silentAudio.play().catch(e => {
                     console.log('🔇 iOS unmute attempt:', e.message);
@@ -1792,7 +1780,7 @@
                 }
             }
 
-            const btn = document.getElementById('audioToggleBtn');
+            const btn = DOM.audioToggleBtn;
             if (btn) {
                 btn.textContent = audioEnabled ? '🔊' : '🔇';
                 btn.style.opacity = audioEnabled ? '1' : '0.5';
@@ -1800,6 +1788,185 @@
 
             return audioEnabled;
         }
+
+        // ⭐ v3.4.0: ЗВУКОВЫЕ ГЕНЕРАТОРЫ - каждый звук как функция вместо switch-case
+        const SOUND_GENERATORS = {
+            // ========== СЫРА - весёлый высокий звук ==========
+            cheese: (ctx) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.frequency.value = 950;
+                gain.gain.setValueAtTime(0.25, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.15);
+            },
+
+            // ========== УРОН ОТ КОТА - тревожный скрип ==========
+            damage: (ctx) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.frequency.setValueAtTime(600, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(350, ctx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.15);
+            },
+
+            // ========== ОПАСНОСТЬ (кот слышит) - быстрые предупреждающие звуки ==========
+            danger: (ctx) => {
+                for (let i = 0; i < 2; i++) {
+                    setTimeout(() => {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.frequency.value = 700 + (i * 100);
+                        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08);
+                        osc.start(ctx.currentTime);
+                        osc.stop(ctx.currentTime + 0.08);
+                    }, i * 100);
+                }
+            },
+
+            // ========== ПРЯТКА В НОРКЕ - спокойный, уютный звук ==========
+            burrow: (ctx) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.frequency.setValueAtTime(300, ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(400, ctx.currentTime + 0.3);
+                gain.gain.setValueAtTime(0.15, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.02, ctx.currentTime + 0.3);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.3);
+            },
+
+            // ========== КЛИК КНОПКИ - позитивный щелчок ==========
+            button: (ctx) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.frequency.value = 550;
+                gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.12);
+            },
+
+            // ========== МЫШЕЛОВКА - опасный звук ==========
+            trap: (ctx) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.frequency.setValueAtTime(200, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(150, ctx.currentTime + 0.2);
+                gain.gain.setValueAtTime(0.35, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.2);
+            },
+
+            // ========== ПАУЗА - нейтральный щелчок ==========
+            pause: (ctx) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.frequency.value = 450;
+                gain.gain.setValueAtTime(0.15, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.1);
+            },
+
+            // ========== МЕНЮ - мягкий звук открытия ==========
+            menu: (ctx) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.frequency.setValueAtTime(350, ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(500, ctx.currentTime + 0.25);
+                gain.gain.setValueAtTime(0.12, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.25);
+            },
+
+            // ========== КОНЕЦ УРОВНЯ - эпическое завершение ==========
+            level: (ctx) => {
+                const notes = [400, 500, 600, 700];
+                for (let i = 0; i < notes.length; i++) {
+                    setTimeout(() => {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.frequency.value = notes[i];
+                        gain.gain.setValueAtTime(0.12, ctx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
+                        osc.start(ctx.currentTime);
+                        osc.stop(ctx.currentTime + 0.12);
+                    }, i * 80);
+                }
+            },
+
+            // ========== ИГРА ОКОНЧЕНА - грустный звук ==========
+            gameOver: (ctx) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.frequency.setValueAtTime(500, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.5);
+                gain.gain.setValueAtTime(0.25, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.5);
+            },
+
+            // ========== ПОБЕДА - праздничный звук ==========
+            victory: (ctx) => {
+                const notes = [600, 700, 800, 900];
+                for (let i = 0; i < notes.length; i++) {
+                    setTimeout(() => {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.frequency.value = notes[i];
+                        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+                        osc.start(ctx.currentTime);
+                        osc.stop(ctx.currentTime + 0.2);
+                    }, i * 120);
+                }
+            },
+
+            // ========== ПОПАДАНИЕ В КОГТИ (поймана) - громкий удар ==========
+            caught: (ctx) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.frequency.setValueAtTime(250, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.3);
+                gain.gain.setValueAtTime(0.4, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.3);
+            }
+        };
 
         function playSound(type) {
             if (!audioEnabled) return;
@@ -1825,194 +1992,12 @@
             console.log(`🎵 [${type}] ctx.state=${ctx.state}, sampleRate=${ctx.sampleRate}, currentTime=${ctx.currentTime}`);
 
             try {
-                switch (type) {
-                    // ========== СЫРА - весёлый высокий звук ==========
-                    case 'cheese': {
-                        const osc = ctx.createOscillator();
-                        const gain = ctx.createGain();
-                        osc.connect(gain);
-                        gain.connect(ctx.destination);
-                        osc.frequency.value = 950;
-                        gain.gain.setValueAtTime(0.25, ctx.currentTime);
-                        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
-                        osc.start(ctx.currentTime);
-                        osc.stop(ctx.currentTime + 0.15);
-                        break;
-                    }
-
-                    // ========== УРОН ОТ КОТА - тревожный скрип ==========
-                    case 'damage': {
-                        const osc = ctx.createOscillator();
-                        const gain = ctx.createGain();
-                        osc.connect(gain);
-                        gain.connect(ctx.destination);
-                        osc.frequency.setValueAtTime(600, ctx.currentTime);
-                        osc.frequency.exponentialRampToValueAtTime(350, ctx.currentTime + 0.15);
-                        gain.gain.setValueAtTime(0.3, ctx.currentTime);
-                        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
-                        osc.start(ctx.currentTime);
-                        osc.stop(ctx.currentTime + 0.15);
-                        break;
-                    }
-
-                    // ========== ОПАСНОСТЬ (кот слышит) - быстрые предупреждающие звуки ==========
-                    case 'danger': {
-                        for (let i = 0; i < 2; i++) {
-                            setTimeout(() => {
-                                const osc = ctx.createOscillator();
-                                const gain = ctx.createGain();
-                                osc.connect(gain);
-                                gain.connect(ctx.destination);
-                                osc.frequency.value = 700 + (i * 100);
-                                gain.gain.setValueAtTime(0.2, ctx.currentTime);
-                                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08);
-                                osc.start(ctx.currentTime);
-                                osc.stop(ctx.currentTime + 0.08);
-                            }, i * 100);
-                        }
-                        break;
-                    }
-
-                    // ========== ПРЯТКА В НОРКЕ - спокойный, уютный звук ==========
-                    case 'burrow': {
-                        const osc = ctx.createOscillator();
-                        const gain = ctx.createGain();
-                        osc.connect(gain);
-                        gain.connect(ctx.destination);
-                        osc.frequency.setValueAtTime(300, ctx.currentTime);
-                        osc.frequency.linearRampToValueAtTime(400, ctx.currentTime + 0.3);
-                        gain.gain.setValueAtTime(0.15, ctx.currentTime);
-                        gain.gain.exponentialRampToValueAtTime(0.02, ctx.currentTime + 0.3);
-                        osc.start(ctx.currentTime);
-                        osc.stop(ctx.currentTime + 0.3);
-                        break;
-                    }
-
-                    // ========== КЛИК КНОПКИ - позитивный щелчок ==========
-                    case 'button': {
-                        const osc = ctx.createOscillator();
-                        const gain = ctx.createGain();
-                        osc.connect(gain);
-                        gain.connect(ctx.destination);
-                        osc.frequency.value = 550;
-                        gain.gain.setValueAtTime(0.2, ctx.currentTime);
-                        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
-                        osc.start(ctx.currentTime);
-                        osc.stop(ctx.currentTime + 0.12);
-                        break;
-                    }
-
-                    // ========== МЫШЕЛОВКА - опасный звук ==========
-                    case 'trap': {
-                        const osc = ctx.createOscillator();
-                        const gain = ctx.createGain();
-                        osc.connect(gain);
-                        gain.connect(ctx.destination);
-                        osc.frequency.setValueAtTime(200, ctx.currentTime);
-                        osc.frequency.exponentialRampToValueAtTime(150, ctx.currentTime + 0.2);
-                        gain.gain.setValueAtTime(0.35, ctx.currentTime);
-                        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
-                        osc.start(ctx.currentTime);
-                        osc.stop(ctx.currentTime + 0.2);
-                        break;
-                    }
-
-                    // ========== ПАУЗА - нейтральный щелчок ==========
-                    case 'pause': {
-                        const osc = ctx.createOscillator();
-                        const gain = ctx.createGain();
-                        osc.connect(gain);
-                        gain.connect(ctx.destination);
-                        osc.frequency.value = 450;
-                        gain.gain.setValueAtTime(0.15, ctx.currentTime);
-                        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
-                        osc.start(ctx.currentTime);
-                        osc.stop(ctx.currentTime + 0.1);
-                        break;
-                    }
-
-                    // ========== МЕНЮ - мягкий звук открытия ==========
-                    case 'menu': {
-                        const osc = ctx.createOscillator();
-                        const gain = ctx.createGain();
-                        osc.connect(gain);
-                        gain.connect(ctx.destination);
-                        osc.frequency.setValueAtTime(350, ctx.currentTime);
-                        osc.frequency.linearRampToValueAtTime(500, ctx.currentTime + 0.25);
-                        gain.gain.setValueAtTime(0.12, ctx.currentTime);
-                        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
-                        osc.start(ctx.currentTime);
-                        osc.stop(ctx.currentTime + 0.25);
-                        break;
-                    }
-
-                    // ========== КОНЕЦ УРОВНЯ - эпическое завершение ==========
-                    case 'level': {
-                        const notes = [400, 500, 600, 700];
-                        for (let i = 0; i < notes.length; i++) {
-                            setTimeout(() => {
-                                const osc = ctx.createOscillator();
-                                const gain = ctx.createGain();
-                                osc.connect(gain);
-                                gain.connect(ctx.destination);
-                                osc.frequency.value = notes[i];
-                                gain.gain.setValueAtTime(0.12, ctx.currentTime);
-                                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
-                                osc.start(ctx.currentTime);
-                                osc.stop(ctx.currentTime + 0.12);
-                            }, i * 80);
-                        }
-                        break;
-                    }
-
-                    // ========== ИГРА ОКОНЧЕНА - грустный звук ==========
-                    case 'gameOver': {
-                        const osc = ctx.createOscillator();
-                        const gain = ctx.createGain();
-                        osc.connect(gain);
-                        gain.connect(ctx.destination);
-                        osc.frequency.setValueAtTime(500, ctx.currentTime);
-                        osc.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.5);
-                        gain.gain.setValueAtTime(0.25, ctx.currentTime);
-                        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-                        osc.start(ctx.currentTime);
-                        osc.stop(ctx.currentTime + 0.5);
-                        break;
-                    }
-
-                    // ========== ПОБЕДА - праздничный звук ==========
-                    case 'victory': {
-                        const notes = [600, 700, 800, 900];
-                        for (let i = 0; i < notes.length; i++) {
-                            setTimeout(() => {
-                                const osc = ctx.createOscillator();
-                                const gain = ctx.createGain();
-                                osc.connect(gain);
-                                gain.connect(ctx.destination);
-                                osc.frequency.value = notes[i];
-                                gain.gain.setValueAtTime(0.15, ctx.currentTime);
-                                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
-                                osc.start(ctx.currentTime);
-                                osc.stop(ctx.currentTime + 0.2);
-                            }, i * 120);
-                        }
-                        break;
-                    }
-
-                    // ========== ПОПАДАНИЕ В КОГТИ (поймана) - громкий удар ==========
-                    case 'caught': {
-                        const osc = ctx.createOscillator();
-                        const gain = ctx.createGain();
-                        osc.connect(gain);
-                        gain.connect(ctx.destination);
-                        osc.frequency.setValueAtTime(250, ctx.currentTime);
-                        osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.3);
-                        gain.gain.setValueAtTime(0.4, ctx.currentTime);
-                        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-                        osc.start(ctx.currentTime);
-                        osc.stop(ctx.currentTime + 0.3);
-                        break;
-                    }
+                // ⭐ v3.4.0: Вызов функции из SOUND_GENERATORS вместо switch-statement
+                const generator = SOUND_GENERATORS[type];
+                if (generator) {
+                    generator(ctx);
+                } else {
+                    console.warn(`⚠️ Unknown sound type: ${type}`);
                 }
             } catch (e) {
                 // ⭐ v3.2.1: Log audio errors for debugging Safari issues
@@ -2030,7 +2015,7 @@
                 // Сброс счетчика безопасности
                 gameLoopSafetyCounter = 0;
 
-                gameState.canvas = document.getElementById('gameCanvas');
+                gameState.canvas = DOM.gameCanvas;
                 if (!gameState.canvas) throw new Error('Canvas not found!');
                 console.log('✅ Canvas найден');
 
@@ -2389,12 +2374,12 @@
                     // НЕ используем setTimeout - он может вызвать проблемы
                     // Вместо этого показываем экран game over синхронно
                     try {
-                        const textEl = document.getElementById('gameOverText');
+                        const textEl = DOM.gameOverText;
                         if (textEl) {
                             textEl.textContent = `Уровень: ${finalLevel}\nСыр собран: ${finalCheese}/${finalAllCheese}\nОчки: ${finalScore}`;
                         }
 
-                        const statsPanel = document.getElementById('statsPanel');
+                        const statsPanel = DOM.statsPanel;
                         if (statsPanel) {
                             // Максимально быстрое построение HTML
                             statsPanel.innerHTML = `
@@ -2421,13 +2406,13 @@
                             `;
                         }
 
-                        const inputPanel = document.getElementById('scoreInputPanel');
+                        const inputPanel = DOM.scoreInputPanel;
                         if (inputPanel) inputPanel.style.display = 'block';
 
-                        const playerNameEl = document.getElementById('playerName');
+                        const playerNameEl = DOM.playerName;
                         if (playerNameEl) playerNameEl.focus();
 
-                        const gameOverScreen = document.getElementById('gameOverScreen');
+                        const gameOverScreen = DOM.gameOverScreen;
                         if (gameOverScreen) gameOverScreen.classList.add('active');
                     } catch (e) {
                         console.error('Критическая ошибка при game over:', e);
@@ -2457,11 +2442,11 @@
 
                     // Синхронно показываем экран
                     try {
-                        const textEl = document.getElementById('levelCompleteText');
+                        const textEl = DOM.levelCompleteText;
                         if (textEl) {
                             textEl.textContent = `🎉 Уровень ${completeLevel} пройден!\nМыши спасены: ${completeAliveMice}\nОчки: ${completeFinalScore}`;
                         }
-                        const levelCompleteScreen = document.getElementById('levelCompleteScreen');
+                        const levelCompleteScreen = DOM.levelCompleteScreen;
                         if (levelCompleteScreen) levelCompleteScreen.classList.add('active');
                     } catch (e) {
                         console.error('Ошибка при level complete:', e);
@@ -2500,7 +2485,7 @@
 
             console.log('📱 Инициализация mobile touch controls...');
 
-            const virtualControls = document.getElementById('virtualControls');
+            const virtualControls = DOM.virtualControls;
             if (!virtualControls) {
                 console.warn('⚠️ virtualControls не найден');
                 return;
@@ -2552,21 +2537,19 @@
                     console.warn(`⚠️ Кнопка ${index} не имеет onclick обработчика!`);
                 }
 
-                // Добавляем явные touch handlers для надежности
-                btn.addEventListener('touchstart', (e) => {
-                    console.log(`👆 Touch start на кнопке: ${btn.textContent}`);
+                // ⭐ v3.3.0: Используем pointerdown/up вместо multiple touch events
+                // Это работает для touch, mouse и pen одновременно
+                btn.addEventListener('pointerdown', (e) => {
                     btn.style.transform = 'scale(0.95)';
-                }, { passive: true });
+                });
 
-                btn.addEventListener('touchend', (e) => {
-                    console.log(`👆 Touch end на кнопке: ${btn.textContent}`);
+                btn.addEventListener('pointerup', (e) => {
                     btn.style.transform = 'scale(1)';
-                }, { passive: true });
+                });
 
-                btn.addEventListener('touchcancel', (e) => {
-                    console.log(`👆 Touch cancel на кнопке: ${btn.textContent}`);
+                btn.addEventListener('pointercancel', (e) => {
                     btn.style.transform = 'scale(1)';
-                }, { passive: true });
+                });
 
                 // Убедимся что кнопка имеет правильные стили для touch
                 btn.style.WebkitTouchCallout = 'none';
@@ -2586,7 +2569,7 @@
 
             console.log(`📱 Ориентация: ${isLandscape ? 'LANDSCAPE' : 'PORTRAIT'}`);
 
-            const prompt = document.getElementById('orientationPrompt');
+            const prompt = DOM.orientationPrompt;
             if (!prompt) return;
 
             if (!isLandscape) {
@@ -2598,7 +2581,7 @@
             }
         }
 
-        // Инициализация мобилы при загрузке страницы
+        // ⭐ v3.3.0: МОБИЛЬНАЯ ОПТИМИЗАЦИЯ - ОРИЕНТАЦИЯ И UNIFIED EVENT HANDLING
         function initMobileOptimization() {
             if (!isMobileDevice()) {
                 console.log('💻 Desktop режим - мобильная оптимизация не требуется');
@@ -2614,21 +2597,53 @@
             window.addEventListener('orientationchange', checkAndHandleOrientation, false);
             window.addEventListener('resize', checkAndHandleOrientation, false);
 
-            // Отключаем scroll на мобиле когда игра запущена
+            // ⭐ UNIFIED TOUCH PREVENTION: Все в одном listener
+            let lastTouchTime = 0;
             document.addEventListener('touchmove', (e) => {
-                if (gameState.isRunning && e.target === gameState.canvas) {
+                // Отключаем scroll когда игра запущена
+                if (gameState.isRunning && (e.target === gameState.canvas || e.target.closest('#virtualControls'))) {
                     e.preventDefault();
                 }
             }, { passive: false });
 
-            // Отключаем zoom на мобиле
             document.addEventListener('touchstart', (e) => {
+                const now = Date.now();
+
+                // Отключаем multi-touch zoom
                 if (e.touches.length > 1) {
                     e.preventDefault();
                 }
+
+                // Отключаем double-tap zoom
+                if (now - lastTouchTime < 300 && e.touches.length === 1) {
+                    e.preventDefault();
+                }
+                lastTouchTime = now;
             }, { passive: false });
 
-            console.log('✅ Mobile event listeners установлены');
+            console.log('✅ Mobile event listeners установлены (unified)');
+
+            // ⭐ v3.3.0: CONSOLIDATED iOS/Safari specific fixes
+            // Apply webkit styles to interactive elements
+            document.querySelectorAll('.action-btn, button, input').forEach(el => {
+                el.style.touchAction = 'manipulation';
+                el.style.webkitTouchCallout = 'none';
+                el.style.webkitUserSelect = 'none';
+            });
+
+            // Canvas setup for iOS
+            const canvas = DOM.gameCanvas;
+            if (canvas) {
+                canvas.style.touchAction = 'none';
+                canvas.style.webkitTouchCallout = 'none';
+                canvas.style.transform = 'translateZ(0)';  // Force repaint on iOS
+            }
+
+            // Fix viewport on iPhone
+            const viewport = DOM.viewportMeta;
+            if (viewport) {
+                viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0, minimal-ui');
+            }
         }
 
         // ⭐ v2.6.0: УЛУЧШЕННАЯ ИНИЦИАЛИЗАЦИЯ ИГРЫ ДЛЯ МОБИЛЫ
@@ -2644,7 +2659,7 @@
                 // 2. Получаем canvas
                 console.log('📐 Инициализация canvas...');
                 if (!gameState.canvas) {
-                    gameState.canvas = document.getElementById('gameCanvas');
+                    gameState.canvas = DOM.gameCanvas;
                     if (!gameState.canvas) {
                         throw new Error('Canvas element not found!');
                     }
@@ -2730,38 +2745,6 @@
             } catch (e) {
                 console.error('❌ Error drawing on canvas:', e.message);
             }
-        }
-
-        // ⭐ v2.6.0: УЛУЧШЕННЫЕ INPUT HANDLERS ДЛЯ МОБИЛЫ
-        function setupMobileInputHandlers() {
-            console.log('📱 Инициализация mobile input handlers...');
-
-            // Предотвращаем accidental scrolling
-            document.addEventListener('touchstart', (e) => {
-                if (gameState.isRunning && e.target === gameState.canvas) {
-                    e.preventDefault();
-                }
-            }, { passive: false });
-
-            document.addEventListener('touchmove', (e) => {
-                if (gameState.isRunning) {
-                    if (e.target === gameState.canvas || e.target.closest('#virtualControls')) {
-                        e.preventDefault();
-                    }
-                }
-            }, { passive: false });
-
-            // Отключаем double-tap zoom
-            let lastTouchEnd = 0;
-            document.addEventListener('touchend', (e) => {
-                const now = Date.now();
-                if (now - lastTouchEnd <= 300) {
-                    e.preventDefault();
-                }
-                lastTouchEnd = now;
-            }, { passive: false });
-
-            console.log('✅ Mobile input handlers установлены');
         }
 
         // Handle device orientation changes
@@ -2884,7 +2867,7 @@
         }
 
         function updateControllerIndicator() {
-            const indicator = document.getElementById('controllerIndicator');
+            const indicator = DOM.controllerIndicator;
             if (!indicator) {
                 // Создаем индикатор если его нет
                 const div = document.createElement('div');
@@ -2937,11 +2920,11 @@
 
         function getVisibleMenuButtons() {
             // Получаем активный экран меню
-            const menuScreen = document.getElementById('menuScreen');
-            const pauseScreen = document.getElementById('pauseScreen');
-            const levelCompleteScreen = document.getElementById('levelCompleteScreen');
-            const gameOverScreen = document.getElementById('gameOverScreen');
-            const leaderboardScreen = document.getElementById('leaderboardScreen');
+            const menuScreen = DOM.menuScreen;
+            const pauseScreen = DOM.pauseScreen;
+            const levelCompleteScreen = DOM.levelCompleteScreen;
+            const gameOverScreen = DOM.gameOverScreen;
+            const leaderboardScreen = DOM.leaderboardScreen;
 
             let activeScreen = null;
             let screenName = '';
@@ -3049,10 +3032,10 @@
             }
 
             // ⭐ ОТДЕЛЬНАЯ ЛОГИКА ДЛЯ МЕНЮ (не блокирует ввод)
-            const menuScreen = document.getElementById('menuScreen');
-            const pauseScreen = document.getElementById('pauseScreen');
-            const levelCompleteScreen = document.getElementById('levelCompleteScreen');
-            const gameOverScreen = document.getElementById('gameOverScreen');
+            const menuScreen = DOM.menuScreen;
+            const pauseScreen = DOM.pauseScreen;
+            const levelCompleteScreen = DOM.levelCompleteScreen;
+            const gameOverScreen = DOM.gameOverScreen;
 
             const isMenuOpen = (menuScreen && menuScreen.classList.contains('active')) ||
                               (pauseScreen && pauseScreen.classList.contains('active')) ||
@@ -3080,7 +3063,7 @@
             if (e.key === ' ' && gameState.isRunning && !isMenuOpen) {
                 e.preventDefault();
                 gameState.isPaused = !gameState.isPaused;
-                const pauseScreen = document.getElementById('pauseScreen');
+                const pauseScreen = DOM.pauseScreen;
                 if (pauseScreen) {
                     pauseScreen.classList.toggle('active');
                 }
@@ -3114,10 +3097,10 @@
                 console.log('✅ Input очищен');
 
                 // Скрываем меню
-                document.getElementById('menuScreen').classList.remove('active');
-                document.getElementById('pauseScreen').classList.remove('active');
-                document.getElementById('levelCompleteScreen').classList.remove('active');
-                document.getElementById('gameOverScreen').classList.remove('active');
+                DOM.menuScreen.classList.remove('active');
+                DOM.pauseScreen.classList.remove('active');
+                DOM.levelCompleteScreen.classList.remove('active');
+                DOM.gameOverScreen.classList.remove('active');
 
                 // Инициализируем состояние игры
                 gameState.currentLevel = 1;
@@ -3126,13 +3109,13 @@
                 gameState.isPaused = false;
 
                 // ⭐ v3.2: Инициализируем DOM кэш один раз (используется 60х/сек в updateUI)
-                gameState.domCache.miceCount = document.getElementById('miceCount');
-                gameState.domCache.miceHP = document.getElementById('miceHP');
-                gameState.domCache.cheeseCount = document.getElementById('cheeseCount');
-                gameState.domCache.totalCheese = document.getElementById('totalCheese');
-                gameState.domCache.levelNumber = document.getElementById('levelNumber');
-                gameState.domCache.stamina = document.getElementById('stamina');
-                gameState.domCache.fps = document.getElementById('fps');
+                gameState.domCache.miceCount = DOM.miceCount;
+                gameState.domCache.miceHP = DOM.miceHP;
+                gameState.domCache.cheeseCount = DOM.cheeseCount;
+                gameState.domCache.totalCheese = DOM.totalCheese;
+                gameState.domCache.levelNumber = DOM.levelNumber;
+                gameState.domCache.stamina = DOM.stamina;
+                gameState.domCache.fps = DOM.fps;
 
                 // ⭐ v3.2.3: Инициализируем AudioContext в user gesture context (click START GAME)
                 console.log('🔊 Initializing audio...');
@@ -3180,7 +3163,7 @@
             // ⭐ v3.2.4: Очищаем input при переходе на следующий уровень
             clearAllInput();
 
-            document.getElementById('levelCompleteScreen').classList.remove('active');
+            DOM.levelCompleteScreen.classList.remove('active');
             gameState.currentLevel++;
             gameState.isRunning = true;
             gameState.isPaused = false;
@@ -3191,76 +3174,25 @@
 
         function resumeGame() {
             gameState.isPaused = false;
-            document.getElementById('pauseScreen').classList.remove('active');
+            DOM.pauseScreen.classList.remove('active');
             playSound('pause');
         }
 
         function menuGame() {
             gameState.isRunning = false;
             playSound('menu');
-            document.getElementById('menuScreen').classList.add('active');
-            document.getElementById('pauseScreen').classList.remove('active');
-            document.getElementById('levelCompleteScreen').classList.remove('active');
-            document.getElementById('gameOverScreen').classList.remove('active');
-            document.getElementById('leaderboardScreen').style.display = 'none';
-            document.getElementById('scoreInputPanel').style.display = 'none';
-            document.getElementById('playerName').value = '';
+            DOM.menuScreen.classList.add('active');
+            DOM.pauseScreen.classList.remove('active');
+            DOM.levelCompleteScreen.classList.remove('active');
+            DOM.gameOverScreen.classList.remove('active');
+            DOM.leaderboardScreen.style.display = 'none';
+            DOM.scoreInputPanel.style.display = 'none';
+            DOM.playerName.value = '';
         }
-
-        // ⭐ v2.7.1: СПЕЦИАЛЬНЫЕ ФИКСЫ ДЛЯ IPHONE И МОБИЛЬНЫХ БРАУЗЕРОВ
-        function initializeIOSFixes() {
-            console.log('🍎 Инициализация iOS-specific fixes...');
-
-            // 1. Предотвращаем zoom на double-tap
-            let lastTouchTime = 0;
-            document.addEventListener('touchstart', function(e) {
-                const currentTime = new Date().getTime();
-                const timeSinceLastTouch = currentTime - lastTouchTime;
-                lastTouchTime = currentTime;
-
-                if (timeSinceLastTouch < 300 && e.touches.length === 1) {
-                    e.preventDefault();
-                }
-            }, { passive: false });
-
-            // 2. Отключаем scrolling на мобиле
-            document.addEventListener('touchmove', function(e) {
-                if (e.target === gameState.canvas || e.target.closest('#virtualControls')) {
-                    e.preventDefault();
-                }
-            }, { passive: false });
-
-            // 3. Добавляем touch-action для всех interactive элементов
-            document.querySelectorAll('.action-btn, button, input').forEach(el => {
-                el.style.touchAction = 'manipulation';
-                el.style.webkitTouchCallout = 'none';
-                el.style.webkitUserSelect = 'none';
-            });
-
-            // 4. Убеждаемся что canvas правильно инициализирован
-            const canvas = document.getElementById('gameCanvas');
-            if (canvas) {
-                canvas.style.touchAction = 'none';
-                canvas.style.webkitTouchCallout = 'none';
-                // Forcing repaint on iOS
-                canvas.style.transform = 'translateZ(0)';
-            }
-
-            // 5. Фиксим viewport на iPhone
-            const viewport = document.querySelector('meta[name="viewport"]');
-            if (viewport) {
-                viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0, minimal-ui');
-            }
-
-            console.log('✅ iOS fixes инициализированы');
-        }
-
-        // Вызываем iOS фиксы прямо в начале, не дожидаясь load event
-        initializeIOSFixes();
 
         window.addEventListener('load', () => {
             // Update version display
-            const versionDisplay = document.getElementById('versionDisplay');
+            const versionDisplay = DOM.versionDisplay;
             if (versionDisplay) {
                 versionDisplay.textContent = GAME_VERSION;
             }
@@ -3286,7 +3218,7 @@
 
             if (isTouch || isMobile) {
                 console.log('📱 МОБИЛЬНОЕ УСТРОЙСТВО - Включаем виртуальные элементы управления');
-                const virtualControls = document.getElementById('virtualControls');
+                const virtualControls = DOM.virtualControls;
                 if (virtualControls) {
                     console.log('✅ Виртуальные кнопки найдены в DOM');
                     setupTouchControls();
@@ -3296,7 +3228,7 @@
                 }
 
                 // Обновляем подсказку управления для мобиля
-                const controlsHint = document.getElementById('controls');
+                const controlsHint = DOM.controls;
                 if (controlsHint) {
                     controlsHint.textContent = '👆 Используй кнопки внизу экрана для управления!';
                     console.log('✅ Подсказка управления обновлена');
@@ -3305,9 +3237,8 @@
                 // ⭐ КРИТИЧЕСКИ ВАЖНО ДЛЯ МОБИЛЯ: Оптимизируем кнопки меню для мобильных устройств
                 setupMobileButtons();
 
-                // ⭐ v2.6.0: Инициализируем мобильную оптимизацию (ориентация, input handlers)
+                // ⭐ v3.3.0: Инициализируем мобильную оптимизацию (unified event handlers)
                 initMobileOptimization();
-                setupMobileInputHandlers();
             }
 
             // iOS/Safari specific fixes
@@ -3321,7 +3252,7 @@
 
             // Показываем новый совет каждые 10 секунд
             setInterval(() => {
-                if (document.getElementById('menuScreen').classList.contains('active')) {
+                if (DOM.menuScreen.classList.contains('active')) {
                     displayTip();
                 }
             }, 10000);
