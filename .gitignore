@@ -19,3 +19,8 @@ npm-debug.log*
 temp/
 tmp/
 *.tmp
+
+# ⭐ Environment variables (НЕ коммитить токены!)
+.env
+.env.local
+.env.*.local
