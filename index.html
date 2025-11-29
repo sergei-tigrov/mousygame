@@ -1,0 +1,1762 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🐭 МЫШИНЫЕ ПРЯТКИ - OPTIMIZED</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #FF6B6B 0%, #FFD93D 50%, #6BCB77 100%);
+            display: flex; justify-content: center; align-items: center;
+            min-height: 100vh; color: white;
+        }
+        .container { width: 100%; height: 100vh; display: flex; justify-content: center; align-items: center; }
+        #gameCanvas {
+            border: 5px solid #FFD93D;
+            background: linear-gradient(135deg, #FFE66D 0%, #F4F4F4 50%, #A8E6CF 100%);
+            box-shadow: 0 0 40px rgba(255, 107, 107, 0.6), inset 0 0 20px rgba(255, 255, 255, 0.3);
+            cursor: crosshair; display: block; image-rendering: crisp-edges;
+        }
+        .ui-overlay {
+            position: absolute; width: 100%; height: 100%;
+            display: flex; flex-direction: column; pointer-events: none;
+        }
+        .ui-top {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 20px; font-size: 18px; font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5); gap: 15px; flex-wrap: wrap;
+        }
+        .ui-bottom {
+            padding: 20px; text-align: center; font-size: 14px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        .stat {
+            padding: 10px 18px;
+            background: linear-gradient(135deg, rgba(255, 107, 107, 0.8), rgba(255, 217, 61, 0.8));
+            border-radius: 12px; border: 2px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); font-weight: bold;
+        }
+        .menu-screen, .pause-screen, .level-complete-screen, .game-over-screen {
+            position: absolute; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.95); display: none;
+            flex-direction: column; justify-content: center; align-items: center;
+            z-index: 100; pointer-events: all;
+        }
+        .menu-screen.active, .pause-screen.active, .level-complete-screen.active, .game-over-screen.active {
+            display: flex;
+        }
+        .menu-content { text-align: center; animation: slideIn 0.5s ease-out; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(-30px); } to { opacity: 1; transform: translateY(0); } }
+        .title { font-size: 50px; margin-bottom: 20px; text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.7); }
+        .menu-content p { font-size: 16px; margin: 12px 0; opacity: 0.95; }
+        .button {
+            background: linear-gradient(135deg, #FF6B6B 0%, #FFD93D 100%);
+            color: white; border: 2px solid white; padding: 12px 30px;
+            font-size: 18px; border-radius: 8px; cursor: pointer; margin: 8px;
+            transition: all 0.3s ease; font-weight: bold;
+        }
+        .button:hover { transform: scale(1.05); box-shadow: 0 0 20px rgba(255, 255, 255, 0.5); }
+        .button:active { transform: scale(0.98); }
+        .hint { font-size: 13px; opacity: 0.75; margin-top: 15px; line-height: 1.4; }
+
+        @keyframes tipFade {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <canvas id="gameCanvas"></canvas>
+        <div class="ui-overlay">
+            <div class="ui-top">
+                <div class="stat">🐭 <span id="miceCount">0</span> HP: <span id="miceHP">0</span></div>
+                <div class="stat">🧀 <span id="cheeseCount">0</span>/<span id="totalCheese">0</span></div>
+                <div class="stat">⭐ <span id="levelNumber">1</span></div>
+                <div class="stat">⚡ <span id="stamina">100</span>%</div>
+                <div class="stat">FPS: <span id="fps">60</span></div>
+            </div>
+            <div style="flex: 1;"></div>
+            <div class="ui-bottom" id="controls">
+                WASD/↑↓←→ движение | SHIFT спринт | ПРОБЕЛ пауза | TAB мышь | E норка
+            </div>
+        </div>
+
+        <div class="menu-screen active" id="menuScreen">
+            <div class="menu-content">
+                <div class="title">🐭 МЫШИНЫЕ ПРЯТКИ 👀</div>
+                <p>Помоги мышкам спрятаться от кошек!</p>
+                <button class="button" onclick="startGame()">▶️ НАЧАТЬ ИГРУ</button>
+                <div class="hint" id="menuTip" style="
+                    background: rgba(255, 255, 255, 0.1);
+                    padding: 15px;
+                    border-radius: 10px;
+                    margin-top: 20px;
+                    border-left: 4px solid #FFD93D;
+                    min-height: 60px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    text-align: center;
+                    animation: tipFade 0.5s ease-in;
+                ">
+                    Загружается...
+                </div>
+                <button class="button" onclick="rotateTip()" style="
+                    background: transparent;
+                    border: 1px solid #FFD93D;
+                    padding: 8px 16px;
+                    margin-top: 10px;
+                    font-size: 12px;
+                ">↻ ДРУГОЙ СОВЕТ</button>
+            </div>
+        </div>
+
+        <div class="pause-screen" id="pauseScreen">
+            <div class="menu-content">
+                <div class="title">⏸️ ПАУЗА</div>
+                <button class="button" onclick="resumeGame()">▶️ ПРОДОЛЖИТЬ</button>
+                <button class="button" onclick="menuGame()">🏠 В МЕНЮ</button>
+            </div>
+        </div>
+
+        <div class="level-complete-screen" id="levelCompleteScreen">
+            <div class="menu-content">
+                <div class="title">🎉 УРОВЕНЬ ПРОЙДЕН!</div>
+                <p id="levelCompleteText"></p>
+                <button class="button" onclick="nextLevel()">▶️ СЛЕДУЮЩИЙ УРОВЕНЬ</button>
+            </div>
+        </div>
+
+        <div class="game-over-screen" id="gameOverScreen">
+            <div class="menu-content">
+                <div class="title">💀 ИГРА ОКОНЧЕНА</div>
+                <div style="
+                    background: rgba(0, 0, 0, 0.3);
+                    padding: 20px;
+                    border-radius: 15px;
+                    margin: 15px 0;
+                    border-left: 4px solid #FF5722;
+                ">
+                    <p id="gameOverText" style="margin: 0;"></p>
+                </div>
+                <div id="statsPanel" style="
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 10px;
+                    margin: 15px 0;
+                ">
+                </div>
+                <div id="scoreInputPanel" style="display: none;">
+                    <input type="text" id="playerName" placeholder="Введи своё имя..." maxlength="20" style="
+                        padding: 12px;
+                        font-size: 18px;
+                        border: 2px solid #FFD93D;
+                        border-radius: 10px;
+                        margin: 15px 0;
+                        text-align: center;
+                        background: rgba(255, 255, 255, 0.9);
+                        color: #333;
+                    ">
+                    <div style="display: flex; gap: 10px; justify-content: center;">
+                        <button class="button" onclick="saveScore()">💾 СОХРАНИТЬ</button>
+                        <button class="button" onclick="skipScoreSave()">⏭️ ПРОПУСТИТЬ</button>
+                    </div>
+                </div>
+                <button class="button" id="leaderboardBtn" onclick="showLeaderboard()" style="margin-top: 10px;">⭐ РЕЙТИНГ</button>
+                <button class="button" onclick="menuGame()">🏠 В МЕНЮ</button>
+            </div>
+        </div>
+
+        <div class="game-over-screen" id="leaderboardScreen" style="display: none;">
+            <div class="menu-content">
+                <div class="title">⭐ ТАБЛИЦА ЛИДЕРОВ</div>
+                <div id="leaderboardContent" style="
+                    background: rgba(0, 0, 0, 0.3);
+                    padding: 20px;
+                    border-radius: 15px;
+                    margin: 20px 0;
+                    max-height: 400px;
+                    overflow-y: auto;
+                    text-align: left;
+                "></div>
+                <div style="display: flex; gap: 10px; justify-content: center;">
+                    <button class="button" onclick="hideLeaderboard()">← НАЗАД</button>
+                    <button class="button" onclick="menuGame()">🏠 В МЕНЮ</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== КОНФИГУРАЦИЯ ====================
+        const CONFIG = {
+            friction: 0.82,
+            mouseSpeed: 1.5,           // Понижена базовая скорость
+            mouseSprintSpeed: 2.8,     // Ускорение на Shift (заметный прирост: 1.86x)
+            mouseMaxHP: 100,
+            catDamage: 3,
+            catSpeed: 2.0,
+            catChaseSpeed: 2.8,
+            catVisionRange: 220,
+            catVisionAngle: 110,
+            catHearingRange: 150,
+            obstacleSize: 40,
+            cheeseSize: 20,
+            mouseSize: 25,
+            catSize: 28,
+            maxStamina: 100,
+            staminaDecayRun: 2.0,      // Быстрее истощается стамина на спринте
+            staminaRecovery: 0.6,      // Медленнее восстанавливается
+            noiseDecay: 2,
+            healingSpeed: 0.5,
+            burrowRadius: 35,
+        };
+
+        function getLevelConfig(level) {
+            // Ограничиваем врагов чтобы не было лага на высоких уровнях
+            const maxCats = 8;
+            const maxMice = 8;
+
+            const base = {
+                mice: Math.min(1 + Math.floor((level - 1) / 1), maxMice),
+                cats: Math.min(1 + Math.floor((level - 1) / 1), maxCats),
+                cheese: 3 + (level - 1) * 2,
+                obstacles: Math.min(8 + (level - 1) * 2, 25), // Максимум 25 препятствий
+                burrows: 1,
+                traps: Math.max(0, Math.min(level - 2, 5)), // Максимум 5 мышеловок
+            };
+
+            // Ограничиваем размер поля, чтобы не выходил за границы окна браузера
+            const maxWidth = Math.min(window.innerWidth * 0.95, 2400);
+            const maxHeight = Math.min(window.innerHeight * 0.85, 1800);
+
+            let roomWidth = 1000 + (level - 1) * 150;
+            let roomHeight = 800 + (level - 1) * 100;
+
+            // Не превышаем максимальные размеры
+            roomWidth = Math.min(roomWidth, maxWidth);
+            roomHeight = Math.min(roomHeight, maxHeight);
+
+            return { ...base, roomWidth, roomHeight };
+        }
+
+        // ==================== ПРОСТРАНСТВЕННАЯ СЕТКА ====================
+        class SpatialGrid {
+            constructor(width, height, cellSize = 100) {
+                this.cellSize = cellSize;
+                this.cols = Math.ceil(width / cellSize);
+                this.rows = Math.ceil(height / cellSize);
+                this.grid = Array(this.cols * this.rows).fill(null).map(() => ({
+                    mice: [], cats: [], obstacles: [], items: []
+                }));
+            }
+
+            getCell(x, y) {
+                const col = Math.floor(x / this.cellSize);
+                const row = Math.floor(y / this.cellSize);
+                if (col < 0 || col >= this.cols || row < 0 || row >= this.rows) return null;
+                return this.grid[row * this.cols + col];
+            }
+
+            getNearby(x, y, distance) {
+                const result = { mice: [], cats: [], obstacles: [], items: [] };
+                const minCol = Math.max(0, Math.floor((x - distance) / this.cellSize));
+                const maxCol = Math.min(this.cols - 1, Math.floor((x + distance) / this.cellSize));
+                const minRow = Math.max(0, Math.floor((y - distance) / this.cellSize));
+                const maxRow = Math.min(this.rows - 1, Math.floor((y + distance) / this.cellSize));
+
+                for (let row = minRow; row <= maxRow; row++) {
+                    for (let col = minCol; col <= maxCol; col++) {
+                        const cell = this.grid[row * this.cols + col];
+                        // Оптимизация: вместо spread оператора используем цикл (быстрее на больших массивах)
+                        for (let i = 0; i < cell.mice.length; i++) result.mice.push(cell.mice[i]);
+                        for (let i = 0; i < cell.cats.length; i++) result.cats.push(cell.cats[i]);
+                        for (let i = 0; i < cell.obstacles.length; i++) result.obstacles.push(cell.obstacles[i]);
+                        for (let i = 0; i < cell.items.length; i++) result.items.push(cell.items[i]);
+                    }
+                }
+                return result;
+            }
+
+            clear() {
+                for (let i = 0; i < this.grid.length; i++) {
+                    this.grid[i].mice.length = 0;
+                    this.grid[i].cats.length = 0;
+                    this.grid[i].obstacles.length = 0;
+                    this.grid[i].items.length = 0;
+                }
+            }
+
+            insert(type, x, y, obj) {
+                const cell = this.getCell(x, y);
+                if (cell) cell[type].push(obj);
+            }
+        }
+
+        // ==================== ПУЛЛ ЧАСТИЦ ====================
+        class ParticlePool {
+            constructor(size = 500) {
+                this.pool = [];
+                this.active = [];
+                for (let i = 0; i < size; i++) {
+                    this.pool.push({
+                        x: 0, y: 0, vx: 0, vy: 0, life: 0, emoji: '✨'
+                    });
+                }
+            }
+
+            get(x, y, emoji = '✨') {
+                const p = this.pool.length > 0 ? this.pool.pop() :
+                    { x: 0, y: 0, vx: 0, vy: 0, life: 0, emoji: '✨' };
+                p.x = x;
+                p.y = y;
+                p.vx = (Math.random() - 0.5) * 6;
+                p.vy = (Math.random() - 0.5) * 6 - 2;
+                p.life = 1;
+                p.emoji = emoji;
+                this.active.push(p);
+                return p;
+            }
+
+            update() {
+                // Лимитируем активные частицы чтобы не тормозить на 6+ уровнях
+                const maxActive = 150;
+                if (this.active.length > maxActive) {
+                    // Удаляем самые старые частицы
+                    const toRemove = this.active.length - maxActive;
+                    for (let j = 0; j < toRemove; j++) {
+                        const p = this.active.shift();
+                        this.pool.push(p);
+                    }
+                }
+
+                for (let i = this.active.length - 1; i >= 0; i--) {
+                    const p = this.active[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vy += 0.2;
+                    p.life -= 0.05;
+                    if (p.life <= 0) {
+                        this.pool.push(this.active.splice(i, 1)[0]);
+                    }
+                }
+            }
+
+            draw(ctx) {
+                for (let i = 0; i < this.active.length; i++) {
+                    const p = this.active[i];
+                    ctx.save();
+                    ctx.globalAlpha = p.life;
+                    ctx.font = `${20 * p.life}px Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(p.emoji, p.x, p.y);
+                    ctx.restore();
+                }
+            }
+        }
+
+        // ==================== КЛАССЫ ====================
+        class Mouse {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.vx = 0;
+                this.vy = 0;
+                this.radius = CONFIG.mouseSize;
+                this.alive = true;
+                this.emoji = '🐭';
+                this.stamina = CONFIG.maxStamina;
+                this.isSprinting = false;
+                this.noiseLevel = 0;
+                this.hidden = false;
+                this.hp = CONFIG.mouseMaxHP;
+                this.inBurrow = false;
+                this.burrowHealingTimer = 0;
+            }
+
+            update(grid, input, gameState) {
+                if (!this.alive) return;
+
+                this.vx *= CONFIG.friction;
+                this.vy *= CONFIG.friction;
+
+                let isMoving = false;
+                const isSelected = gameState.selectedMouse === gameState.mice.indexOf(this);
+                const speed = (input.keys['Shift'] && this.stamina > 20) ? CONFIG.mouseSprintSpeed : CONFIG.mouseSpeed;
+
+                if (input.keys['w'] || input.keys['ArrowUp']) { this.vy -= speed; isMoving = true; }
+                if (input.keys['s'] || input.keys['ArrowDown']) { this.vy += speed; isMoving = true; }
+                if (input.keys['a'] || input.keys['ArrowLeft']) { this.vx -= speed; isMoving = true; }
+                if (input.keys['d'] || input.keys['ArrowRight']) { this.vx += speed; isMoving = true; }
+
+                // Выносливость
+                if (input.keys['Shift'] && isMoving && this.stamina > 0) {
+                    this.stamina -= CONFIG.staminaDecayRun;
+                    this.noiseLevel += 5;
+                    gameState.globalNoise += 3;
+                } else if (isMoving && this.stamina < CONFIG.maxStamina) {
+                    this.noiseLevel += 2;
+                    gameState.globalNoise += 1;
+                    this.stamina = Math.min(this.stamina + CONFIG.staminaRecovery, CONFIG.maxStamina);
+                } else if (this.stamina < CONFIG.maxStamina) {
+                    this.stamina = Math.min(this.stamina + CONFIG.staminaRecovery, CONFIG.maxStamina);
+                }
+
+                this.noiseLevel = Math.max(0, this.noiseLevel - CONFIG.noiseDecay);
+
+                // Проверяем коллизии с препятствиями (используем spatial grid)
+                const nearbyObjects = gameState.grid.getNearby(this.x, this.y, 150);
+                for (let i = 0; i < nearbyObjects.obstacles.length; i++) {
+                    const obs = nearbyObjects.obstacles[i];
+                    const dx = obs.x - this.x;
+                    const dy = obs.y - this.y;
+                    const distSq = dx * dx + dy * dy;
+                    const minDist = (this.radius + obs.radius) * (this.radius + obs.radius);
+
+                    if (distSq < minDist && distSq > 0) {
+                        // Отталкиваемся от препятствия
+                        const dist = Math.sqrt(distSq);
+                        const push = (Math.sqrt(minDist) - dist) * 0.6;
+                        this.x -= (dx / dist) * push;
+                        this.y -= (dy / dist) * push;
+                        this.vx *= 0.7;
+                        this.vy *= 0.7;
+                    }
+                }
+
+                // Норка доступна для ЛЮБОЙ мыши (если она выбрана) рядом с ней
+                let nearBurrow = false;
+                for (let i = 0; i < gameState.burrows.length; i++) {
+                    const burrow = gameState.burrows[i];
+                    const dx = this.x - burrow.x;
+                    const dy = this.y - burrow.y;
+                    const distSq = dx * dx + dy * dy;
+                    const burrowRange = (CONFIG.burrowRadius + this.radius) * (CONFIG.burrowRadius + this.radius);
+                    if (distSq < burrowRange) {
+                        nearBurrow = true;
+                        // Выбранная мышь рядом с норкой - может войти при нажатии E
+                        if (isSelected && input.keys['e'] && !this.inBurrow) {
+                            this.inBurrow = true;
+                            playSound('burrow');
+                        }
+                        break;
+                    }
+                }
+
+                // Выход из норки при удалении от неё
+                if (this.inBurrow && !nearBurrow) {
+                    this.inBurrow = false;
+                    this.burrowHealingTimer = 0;
+                }
+
+                if (this.inBurrow) {
+                    this.burrowHealingTimer++;
+                    if (this.burrowHealingTimer % 5 === 0) {
+                        this.hp = Math.min(this.hp + CONFIG.healingSpeed, CONFIG.mouseMaxHP);
+                    }
+                } else {
+                    this.burrowHealingTimer = 0;
+                }
+
+                // Проверка скрытия
+                this.hidden = false;
+                const nearby = grid.getNearby(this.x, this.y, 100);
+                for (let i = 0; i < nearby.obstacles.length; i++) {
+                    const obs = nearby.obstacles[i];
+                    const dx = this.x - obs.x;
+                    const dy = this.y - obs.y;
+                    if (dx * dx + dy * dy < (this.radius + obs.radius + 20) * (this.radius + obs.radius + 20)) {
+                        this.hidden = true;
+                        break;
+                    }
+                }
+
+                // Позиция
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Границы
+                const padding = 30;
+                if (this.x - this.radius < padding) this.x = this.radius + padding;
+                if (this.x + this.radius > gameState.canvas.width - padding) this.x = gameState.canvas.width - this.radius - padding;
+                if (this.y - this.radius < padding) this.y = this.radius + padding;
+                if (this.y + this.radius > gameState.canvas.height - padding) this.y = gameState.canvas.height - this.radius - padding;
+
+                // Отталкивание от других мышей
+                for (let i = 0; i < gameState.mice.length; i++) {
+                    const other = gameState.mice[i];
+                    if (other === this || !other.alive) continue;
+                    const dx = other.x - this.x;
+                    const dy = other.y - this.y;
+                    const distSq = dx * dx + dy * dy;
+                    const minDist = (this.radius + other.radius) * 1.2;
+                    if (distSq < minDist * minDist && distSq > 0) {
+                        const dist = Math.sqrt(distSq);
+                        const push = (minDist - dist) * 0.5;
+                        this.x -= (dx / dist) * push;
+                        this.y -= (dy / dist) * push;
+                    }
+                }
+
+                // Сыр
+                for (let i = gameState.cheese.length - 1; i >= 0; i--) {
+                    const cheese = gameState.cheese[i];
+                    const dx = this.x - cheese.x;
+                    const dy = this.y - cheese.y;
+                    if (dx * dx + dy * dy < (this.radius + cheese.radius) * (this.radius + cheese.radius)) {
+                        gameState.collectedCheese++;
+                        gameState.score += (gameState.currentLevel * 10) + (this.stamina > 80 ? 20 : 5);
+                        for (let j = 0; j < 8; j++) gameState.particles.get(cheese.x, cheese.y, '🧀');
+                        gameState.cheese.splice(i, 1);
+                        playSound('cheese');
+                    }
+                }
+
+                // Кошки (защита в норке!)
+                if (!this.inBurrow) {
+                    for (let i = 0; i < gameState.cats.length; i++) {
+                        const cat = gameState.cats[i];
+                        if (cat.canSee(this) || cat.canHear(this)) {
+                            if (!cat.target) playSound('danger');
+                            cat.target = this;
+                        }
+                        const dx = this.x - cat.x;
+                        const dy = this.y - cat.y;
+                        const distSq = dx * dx + dy * dy;
+                        const catchDist = this.radius + cat.radius;
+                        if (distSq < catchDist * catchDist) {
+                            this.hp -= CONFIG.catDamage;
+                            playSound('damage');
+                            if (this.hp <= 0) {
+                                this.alive = false;
+                                for (let j = 0; j < 5; j++) gameState.particles.get(this.x, this.y, '💔');
+                                playSound('caught');
+                            }
+                        }
+                    }
+                }
+
+                // Мышеловки (защита в норке!)
+                if (!this.inBurrow) {
+                    for (let i = 0; i < gameState.traps.length; i++) {
+                        const trap = gameState.traps[i];
+                        const dx = this.x - trap.x;
+                        const dy = this.y - trap.y;
+                        if (dx * dx + dy * dy < (this.radius + trap.radius) * (this.radius + trap.radius)) {
+                            this.alive = false;
+                            for (let j = 0; j < 5; j++) gameState.particles.get(this.x, this.y, '💥');
+                            playSound('trap');
+                        }
+                    }
+                }
+            }
+
+            draw(ctx) {
+                if (!this.alive) return;
+
+                // Рисуем выделение активной мыши (если это она)
+                if (gameState.selectedMouse === gameState.mice.indexOf(this)) {
+                    ctx.save();
+                    ctx.strokeStyle = 'rgba(255, 215, 0, 0.8)';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius + 10, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.restore();
+
+                    // HP бар
+                    ctx.save();
+                    const barWidth = 50;
+                    const barHeight = 5;
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                    ctx.fillRect(this.x - barWidth / 2, this.y - this.radius - 25, barWidth, barHeight);
+                    const hpRatio = this.hp / CONFIG.mouseMaxHP;
+                    const barColor = hpRatio > 0.5 ? '#4CAF50' : hpRatio > 0.2 ? '#FFC107' : '#FF5722';
+                    ctx.fillStyle = barColor;
+                    ctx.fillRect(this.x - barWidth / 2, this.y - this.radius - 25, barWidth * hpRatio, barHeight);
+                    ctx.restore();
+                }
+
+                // Мышь (эффект прячется в норке)
+                ctx.save();
+                let fontSize = this.radius * 2;
+                let alpha = 1;
+
+                if (this.inBurrow) {
+                    // Мышь в норке - меньше размер и полупрозрачна
+                    fontSize = this.radius * 1.4;
+                    alpha = 0.6;
+                    // Эффект мерцания в норке
+                    const flicker = Math.sin(Date.now() * 0.01) * 0.2 + 0.8;
+                    alpha *= flicker;
+                }
+
+                ctx.font = `${fontSize}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.globalAlpha = alpha;
+                ctx.fillText(this.emoji, this.x, this.y);
+
+                // Если в норке, показываем эффект "укрытия"
+                if (this.inBurrow) {
+                    ctx.globalAlpha = 0.3;
+                    ctx.fillStyle = 'rgba(100, 150, 100, 0.5)';
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius + 8, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                ctx.restore();
+            }
+        }
+
+        class Cat {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.vx = 0;
+                this.vy = 0;
+                this.radius = CONFIG.catSize;
+                this.emoji = '😺';
+                this.target = null;
+                this.direction = Math.random() * Math.PI * 2;
+                this.targetDirection = this.direction;
+                this.patrolTimer = 0;
+                this.chaseTimer = 0;
+                this.alertLevel = 0;
+                this.lastSeenPosition = null;
+            }
+
+            canSee(mouse) {
+                if (!mouse.alive || mouse.hidden) return false;
+                const dx = mouse.x - this.x;
+                const dy = mouse.y - this.y;
+                const distSq = dx * dx + dy * dy;
+                if (distSq > CONFIG.catVisionRange * CONFIG.catVisionRange) return false;
+
+                const angleToMouse = Math.atan2(dy, dx);
+                let angleDiff = Math.abs(this.direction - angleToMouse);
+                if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
+                return angleDiff < (CONFIG.catVisionAngle * Math.PI / 180 / 2);
+            }
+
+            canHear(mouse) {
+                if (!mouse.alive) return false;
+                const dx = mouse.x - this.x;
+                const dy = mouse.y - this.y;
+                return dx * dx + dy * dy < CONFIG.catHearingRange * CONFIG.catHearingRange && mouse.noiseLevel > 15;
+            }
+
+            update(gameState) {
+                this.vx *= CONFIG.friction;
+                this.vy *= CONFIG.friction;
+                this.alertLevel = Math.max(0, this.alertLevel - 1);
+
+                let angleDiff = this.targetDirection - this.direction;
+                if (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+                if (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+                this.direction += angleDiff * 0.1;
+
+                if (this.target && this.target.alive) {
+                    this.chaseTimer++;
+                    this.alertLevel = Math.min(this.alertLevel + 8, 100);
+                    const dx = this.target.x - this.x;
+                    const dy = this.target.y - this.y;
+                    const distSq = dx * dx + dy * dy;
+
+                    if (distSq > 25) {
+                        const dist = Math.sqrt(distSq);
+                        const chaseSpeed = CONFIG.catChaseSpeed + (this.alertLevel / 100) * 0.5;
+                        this.vx += (dx / dist) * chaseSpeed;
+                        this.vy += (dy / dist) * chaseSpeed;
+                        this.targetDirection = Math.atan2(dy, dx);
+                    }
+
+                    if (!this.canSee(this.target) && !this.canHear(this.target)) {
+                        this.chaseTimer++;
+                        if (this.chaseTimer > 200) {
+                            this.target = null;
+                            this.chaseTimer = 0;
+                            this.alertLevel = Math.max(0, this.alertLevel - 20);
+                        }
+                    }
+                } else {
+                    this.chaseTimer = 0;
+                    if (this.lastSeenPosition) {
+                        const dx = this.lastSeenPosition.x - this.x;
+                        const dy = this.lastSeenPosition.y - this.y;
+                        const distSq = dx * dx + dy * dy;
+
+                        if (distSq > 400) {
+                            const dist = Math.sqrt(distSq);
+                            this.vx += (dx / dist) * CONFIG.catSpeed * 0.8;
+                            this.vy += (dy / dist) * CONFIG.catSpeed * 0.8;
+                            this.targetDirection = Math.atan2(dy, dx);
+                        } else {
+                            this.lastSeenPosition = null;
+                        }
+                    } else {
+                        this.patrolTimer++;
+                        if (this.patrolTimer > 80) {
+                            this.targetDirection = Math.random() * Math.PI * 2;
+                            this.patrolTimer = 0;
+                        }
+                        this.vx += Math.cos(this.targetDirection) * CONFIG.catSpeed * 0.3;
+                        this.vy += Math.sin(this.targetDirection) * CONFIG.catSpeed * 0.3;
+                    }
+                }
+
+                const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+                const maxSpeed = this.target ? 4.5 : 3.0;
+                if (speed > maxSpeed) {
+                    this.vx = (this.vx / speed) * maxSpeed;
+                    this.vy = (this.vy / speed) * maxSpeed;
+                }
+
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Проверяем коллизии с препятствиями
+                const nearbyObjects = gameState.grid.getNearby(this.x, this.y, 150);
+                for (let i = 0; i < nearbyObjects.obstacles.length; i++) {
+                    const obs = nearbyObjects.obstacles[i];
+                    const dx = obs.x - this.x;
+                    const dy = obs.y - this.y;
+                    const distSq = dx * dx + dy * dy;
+                    const minDist = (this.radius + obs.radius) * (this.radius + obs.radius);
+
+                    if (distSq < minDist && distSq > 0) {
+                        const dist = Math.sqrt(distSq);
+                        const push = (Math.sqrt(minDist) - dist) * 0.6;
+                        this.x -= (dx / dist) * push;
+                        this.y -= (dy / dist) * push;
+                        this.vx *= 0.7;
+                        this.vy *= 0.7;
+                    }
+                }
+
+                const padding = 30;
+                if (this.x - this.radius < padding) {
+                    this.x = this.radius + padding;
+                    this.vx = 0;
+                    this.targetDirection = Math.random() * Math.PI * 2;
+                }
+                if (this.x + this.radius > gameState.canvas.width - padding) {
+                    this.x = gameState.canvas.width - this.radius - padding;
+                    this.vx = 0;
+                    this.targetDirection = Math.random() * Math.PI * 2;
+                }
+                if (this.y - this.radius < padding) {
+                    this.y = this.radius + padding;
+                    this.vy = 0;
+                    this.targetDirection = Math.random() * Math.PI * 2;
+                }
+                if (this.y + this.radius > gameState.canvas.height - padding) {
+                    this.y = gameState.canvas.height - this.radius - padding;
+                    this.vy = 0;
+                    this.targetDirection = Math.random() * Math.PI * 2;
+                }
+            }
+
+            draw(ctx) {
+                const halfAngle = CONFIG.catVisionAngle * Math.PI / 180 / 2;
+                const intensity = 0.15 + (this.alertLevel / 100) * 0.35;
+
+                // Рисуем видение отдельно
+                ctx.save();
+                ctx.fillStyle = `rgba(255, 50, 50, ${intensity * 0.3})`;
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.arc(this.x, this.y, CONFIG.catVisionRange, this.direction - halfAngle, this.direction + halfAngle);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+
+                // Кошка ВСЕГДА полностью видна
+                ctx.save();
+                ctx.font = `${this.radius * 2}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.globalAlpha = 1; // КРИТИЧНО: гарантируем 100% видимость
+                ctx.fillStyle = '#000'; // Стандартный чёрный
+                ctx.fillText(this.emoji, this.x, this.y);
+                ctx.restore();
+            }
+        }
+
+        class Obstacle {
+            constructor(x, y, type) {
+                this.x = x;
+                this.y = y;
+                this.radius = CONFIG.obstacleSize;
+                const emojis = ['🪑', '🛏️', '🚪', '🪟', '📺', '🌿', '🛋️', '🏠', '🚽', '🚿', '📦', '🪴'];
+                this.emoji = emojis[type % emojis.length];
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.font = `${this.radius * 2}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.globalAlpha = 1;
+                ctx.fillText(this.emoji, this.x, this.y);
+                ctx.restore();
+            }
+        }
+
+        class Cheese {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = CONFIG.cheeseSize;
+                this.emoji = '🧀';
+                this.bobbing = Math.random() * Math.PI * 2;
+            }
+
+            update() {
+                this.bobbing += 0.05;
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.font = `${this.radius * 2}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                const bobOffset = Math.sin(this.bobbing) * 3;
+                ctx.globalAlpha = 1;
+                ctx.fillText(this.emoji, this.x, this.y + bobOffset);
+                ctx.restore();
+            }
+        }
+
+        class Burrow {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = CONFIG.burrowRadius;
+                this.emoji = '🕳️';
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.font = `${this.radius * 2}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.globalAlpha = 1;
+                ctx.fillText(this.emoji, this.x, this.y);
+                ctx.restore();
+            }
+        }
+
+        class Trap {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = CONFIG.cheeseSize;
+                this.emoji = '🪤';
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.font = `${this.radius * 2}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.globalAlpha = 1;
+                ctx.fillText(this.emoji, this.x, this.y);
+                ctx.restore();
+            }
+        }
+
+        // ==================== СОВЕТЫ И ПОДСКАЗКИ ====================
+        const TIPS = [
+            "💡 Прячьтесь за предметы, чтобы кошки вас не видели!",
+            "🏃 Спринт издаёт больше шума - используйте его в крайнем случае!",
+            "🕳️ Норки восстанавливают здоровье - спасайтесь в них!",
+            "👂 Кошки слышат громкий шум - ходите тихо!",
+            "🧀 Собирайте сыр быстро, но осторожно - комбо даёт бонус!",
+            "⭐ Соберите весь сыр и дойдите до конца уровня!",
+            "🎯 Каждый уровень сложнее - будьте внимательнее!",
+            "🐱 Кошки видят в конусе впереди себя - обходите их сбоку!",
+            "⚡ Выносливость восстанавливается медленнее при большом шуме!",
+            "🎮 TAB переключает мышей - выбирайте стратегически!"
+        ];
+
+        let currentTip = 0;
+        function getNextTip() {
+            const tip = TIPS[currentTip % TIPS.length];
+            currentTip++;
+            return tip;
+        }
+
+        function displayTip() {
+            const tipElement = document.getElementById('menuTip');
+            if (tipElement) {
+                tipElement.textContent = getNextTip();
+            }
+        }
+
+        function rotateTip() {
+            const tipElement = document.getElementById('menuTip');
+            if (tipElement) {
+                tipElement.style.animation = 'none';
+                setTimeout(() => {
+                    tipElement.style.animation = 'tipFade 0.5s ease-in';
+                    tipElement.textContent = getNextTip();
+                }, 10);
+            }
+        }
+
+        // ==================== РЕЙТИНГ И ЛИДЕРБОРД ====================
+        function getLeaderboard() {
+            const data = localStorage.getItem('mouseGameLeaderboard');
+            return data ? JSON.parse(data) : [];
+        }
+
+        function saveLeaderboard(leaderboard) {
+            localStorage.setItem('mouseGameLeaderboard', JSON.stringify(leaderboard));
+        }
+
+        function addScore(playerName, score, level) {
+            if (!playerName.trim()) return;
+
+            const leaderboard = getLeaderboard();
+            leaderboard.push({
+                name: playerName.trim(),
+                score: score,
+                level: level,
+                date: new Date().toLocaleDateString('ru-RU')
+            });
+
+            // Сортируем по очкам (больше = лучше)
+            leaderboard.sort((a, b) => b.score - a.score);
+
+            // Храним только топ 10
+            const top10 = leaderboard.slice(0, 10);
+            saveLeaderboard(top10);
+        }
+
+        function displayLeaderboard() {
+            const leaderboard = getLeaderboard();
+            const content = document.getElementById('leaderboardContent');
+
+            if (leaderboard.length === 0) {
+                content.innerHTML = '<p style="text-align: center; opacity: 0.7;">Рейтинг пуст. Будь первым! 🎯</p>';
+                return;
+            }
+
+            let html = '<div style="font-family: monospace;">';
+            leaderboard.forEach((entry, index) => {
+                const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
+                html += `<div style="
+                    display: flex;
+                    justify-content: space-between;
+                    padding: 10px;
+                    margin: 5px 0;
+                    background: rgba(255, 255, 255, 0.1);
+                    border-radius: 8px;
+                    border-left: 3px solid #FFD93D;
+                ">
+                    <span>${medal} ${entry.name}</span>
+                    <span style="color: #FFD93D; font-weight: bold;">${entry.score} ⭐</span>
+                </div>`;
+            });
+            html += '</div>';
+            content.innerHTML = html;
+        }
+
+        function showLeaderboard() {
+            playSound('button');
+            document.getElementById('gameOverScreen').style.display = 'none';
+            document.getElementById('leaderboardScreen').style.display = 'flex';
+            displayLeaderboard();
+        }
+
+        function hideLeaderboard() {
+            playSound('button');
+            document.getElementById('leaderboardScreen').style.display = 'none';
+            document.getElementById('gameOverScreen').style.display = 'flex';
+        }
+
+        function saveScore() {
+            const playerName = document.getElementById('playerName').value;
+            if (playerName.trim()) {
+                playSound('button');
+                addScore(playerName, gameState.score, gameState.currentLevel);
+                skipScoreSave();
+            }
+        }
+
+        function skipScoreSave() {
+            playSound('button');
+            document.getElementById('scoreInputPanel').style.display = 'none';
+            document.getElementById('playerName').value = '';
+        }
+
+        // УДАЛЕНО: displayGameStats() - больше не нужна, HTML строится прямо в game loop
+        // Функция была источником потенциального зависания через setTimeout
+
+        // ==================== СОСТОЯНИЕ ====================
+        let gameState = {
+            isRunning: false,
+            isPaused: false,
+            currentLevel: 1,
+            score: 0,
+            mice: [],
+            cats: [],
+            cheese: [],
+            obstacles: [],
+            particles: null,
+            burrows: [],
+            traps: [],
+            canvas: null,
+            ctx: null,
+            selectedMouse: 0,
+            allCheese: 0,
+            collectedCheese: 0,
+            globalNoise: 0,
+            backgroundGradient: null,
+            audioContext: null,
+            grid: null,
+            fps: 60,
+        };
+
+        let input = { keys: {}, mouse: { x: 0, y: 0 } };
+        let fpsFrames = 0, lastFpsTime = 0;
+
+        // ==================== ЗВУКИ ====================
+        function initAudio() {
+            if (!gameState.audioContext) {
+                try {
+                    gameState.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                } catch (e) {
+                    console.log('Audio не доступен');
+                }
+            }
+            return gameState.audioContext;
+        }
+
+        function playSound(type) {
+            const ctx = initAudio();
+            if (!ctx) return;
+
+            try {
+                switch (type) {
+                    // ========== СЫРА - весёлый высокий звук ==========
+                    case 'cheese': {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.frequency.value = 950;
+                        gain.gain.setValueAtTime(0.25, ctx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+                        osc.start(ctx.currentTime);
+                        osc.stop(ctx.currentTime + 0.15);
+                        break;
+                    }
+
+                    // ========== УРОН ОТ КОТА - тревожный скрип ==========
+                    case 'damage': {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.frequency.setValueAtTime(600, ctx.currentTime);
+                        osc.frequency.exponentialRampToValueAtTime(350, ctx.currentTime + 0.15);
+                        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+                        osc.start(ctx.currentTime);
+                        osc.stop(ctx.currentTime + 0.15);
+                        break;
+                    }
+
+                    // ========== ОПАСНОСТЬ (кот слышит) - быстрые предупреждающие звуки ==========
+                    case 'danger': {
+                        for (let i = 0; i < 2; i++) {
+                            setTimeout(() => {
+                                const osc = ctx.createOscillator();
+                                const gain = ctx.createGain();
+                                osc.connect(gain);
+                                gain.connect(ctx.destination);
+                                osc.frequency.value = 700 + (i * 100);
+                                gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08);
+                                osc.start(ctx.currentTime);
+                                osc.stop(ctx.currentTime + 0.08);
+                            }, i * 100);
+                        }
+                        break;
+                    }
+
+                    // ========== ПРЯТКА В НОРКЕ - спокойный, уютный звук ==========
+                    case 'burrow': {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.frequency.setValueAtTime(300, ctx.currentTime);
+                        osc.frequency.linearRampToValueAtTime(400, ctx.currentTime + 0.3);
+                        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.02, ctx.currentTime + 0.3);
+                        osc.start(ctx.currentTime);
+                        osc.stop(ctx.currentTime + 0.3);
+                        break;
+                    }
+
+                    // ========== КЛИК КНОПКИ - позитивный щелчок ==========
+                    case 'button': {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.frequency.value = 550;
+                        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
+                        osc.start(ctx.currentTime);
+                        osc.stop(ctx.currentTime + 0.12);
+                        break;
+                    }
+
+                    // ========== МЫШЕЛОВКА - опасный звук ==========
+                    case 'trap': {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.frequency.setValueAtTime(200, ctx.currentTime);
+                        osc.frequency.exponentialRampToValueAtTime(150, ctx.currentTime + 0.2);
+                        gain.gain.setValueAtTime(0.35, ctx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+                        osc.start(ctx.currentTime);
+                        osc.stop(ctx.currentTime + 0.2);
+                        break;
+                    }
+
+                    // ========== ПАУЗА - нейтральный щелчок ==========
+                    case 'pause': {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.frequency.value = 450;
+                        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+                        osc.start(ctx.currentTime);
+                        osc.stop(ctx.currentTime + 0.1);
+                        break;
+                    }
+
+                    // ========== МЕНЮ - мягкий звук открытия ==========
+                    case 'menu': {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.frequency.setValueAtTime(350, ctx.currentTime);
+                        osc.frequency.linearRampToValueAtTime(500, ctx.currentTime + 0.25);
+                        gain.gain.setValueAtTime(0.12, ctx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+                        osc.start(ctx.currentTime);
+                        osc.stop(ctx.currentTime + 0.25);
+                        break;
+                    }
+
+                    // ========== КОНЕЦ УРОВНЯ - эпическое завершение ==========
+                    case 'level': {
+                        const notes = [400, 500, 600, 700];
+                        for (let i = 0; i < notes.length; i++) {
+                            setTimeout(() => {
+                                const osc = ctx.createOscillator();
+                                const gain = ctx.createGain();
+                                osc.connect(gain);
+                                gain.connect(ctx.destination);
+                                osc.frequency.value = notes[i];
+                                gain.gain.setValueAtTime(0.12, ctx.currentTime);
+                                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
+                                osc.start(ctx.currentTime);
+                                osc.stop(ctx.currentTime + 0.12);
+                            }, i * 80);
+                        }
+                        break;
+                    }
+
+                    // ========== ИГРА ОКОНЧЕНА - грустный звук ==========
+                    case 'gameOver': {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.frequency.setValueAtTime(500, ctx.currentTime);
+                        osc.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.5);
+                        gain.gain.setValueAtTime(0.25, ctx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+                        osc.start(ctx.currentTime);
+                        osc.stop(ctx.currentTime + 0.5);
+                        break;
+                    }
+
+                    // ========== ПОБЕДА - праздничный звук ==========
+                    case 'victory': {
+                        const notes = [600, 700, 800, 900];
+                        for (let i = 0; i < notes.length; i++) {
+                            setTimeout(() => {
+                                const osc = ctx.createOscillator();
+                                const gain = ctx.createGain();
+                                osc.connect(gain);
+                                gain.connect(ctx.destination);
+                                osc.frequency.value = notes[i];
+                                gain.gain.setValueAtTime(0.15, ctx.currentTime);
+                                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+                                osc.start(ctx.currentTime);
+                                osc.stop(ctx.currentTime + 0.2);
+                            }, i * 120);
+                        }
+                        break;
+                    }
+
+                    // ========== ПОПАДАНИЕ В КОГТИ (поймана) - громкий удар ==========
+                    case 'caught': {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.frequency.setValueAtTime(250, ctx.currentTime);
+                        osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.3);
+                        gain.gain.setValueAtTime(0.4, ctx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+                        osc.start(ctx.currentTime);
+                        osc.stop(ctx.currentTime + 0.3);
+                        break;
+                    }
+                }
+            } catch (e) {}
+        }
+
+        // ==================== ИНИЦИАЛИЗАЦИЯ ====================
+        function initGame() {
+            // Сброс счетчика безопасности
+            gameLoopSafetyCounter = 0;
+
+            gameState.canvas = document.getElementById('gameCanvas');
+            gameState.ctx = gameState.canvas.getContext('2d');
+
+            const levelConfig = getLevelConfig(gameState.currentLevel);
+
+            gameState.canvas.width = levelConfig.roomWidth;
+            gameState.canvas.height = levelConfig.roomHeight;
+
+            gameState.grid = new SpatialGrid(levelConfig.roomWidth, levelConfig.roomHeight, 100);
+            gameState.particles = new ParticlePool(500);
+
+            gameState.backgroundGradient = gameState.ctx.createLinearGradient(0, 0, gameState.canvas.width, gameState.canvas.height);
+            gameState.backgroundGradient.addColorStop(0, '#FFE66D');
+            gameState.backgroundGradient.addColorStop(0.5, '#F4F4F4');
+            gameState.backgroundGradient.addColorStop(1, '#A8E6CF');
+
+            gameState.mice = [];
+            gameState.cats = [];
+            gameState.cheese = [];
+            gameState.obstacles = [];
+            gameState.burrows = [];
+            gameState.traps = [];
+            gameState.collectedCheese = 0;
+            gameState.allCheese = levelConfig.cheese;
+            gameState.selectedMouse = 0;
+            gameState.globalNoise = 0;
+
+            // Препятствия
+            for (let i = 0; i < levelConfig.obstacles; i++) {
+                let x, y, valid;
+                do {
+                    valid = true;
+                    x = 100 + Math.random() * (levelConfig.roomWidth - 200);
+                    y = 100 + Math.random() * (levelConfig.roomHeight - 200);
+
+                    for (let j = 0; j < gameState.obstacles.length; j++) {
+                        const obs = gameState.obstacles[j];
+                        const dx = obs.x - x;
+                        const dy = obs.y - y;
+                        if (dx * dx + dy * dy < 120 * 120) {
+                            valid = false;
+                            break;
+                        }
+                    }
+                } while (!valid);
+                const obs = new Obstacle(x, y, i);
+                gameState.obstacles.push(obs);
+                gameState.grid.insert('obstacles', x, y, obs);
+            }
+
+            // Норки
+            for (let i = 0; i < levelConfig.burrows; i++) {
+                let x, y, valid;
+                do {
+                    valid = true;
+                    x = 100 + Math.random() * (levelConfig.roomWidth - 200);
+                    y = 100 + Math.random() * (levelConfig.roomHeight - 200);
+
+                    for (let j = 0; j < gameState.obstacles.length; j++) {
+                        const obs = gameState.obstacles[j];
+                        const dx = obs.x - x;
+                        const dy = obs.y - y;
+                        if (dx * dx + dy * dy < 120 * 120) {
+                            valid = false;
+                            break;
+                        }
+                    }
+                    for (let j = 0; j < gameState.burrows.length; j++) {
+                        const burrow = gameState.burrows[j];
+                        const dx = burrow.x - x;
+                        const dy = burrow.y - y;
+                        if (dx * dx + dy * dy < 120 * 120) {
+                            valid = false;
+                            break;
+                        }
+                    }
+                } while (!valid);
+                gameState.burrows.push(new Burrow(x, y));
+            }
+
+            // Мышеловки
+            for (let i = 0; i < levelConfig.traps; i++) {
+                let x, y, valid;
+                do {
+                    valid = true;
+                    x = 100 + Math.random() * (levelConfig.roomWidth - 200);
+                    y = 100 + Math.random() * (levelConfig.roomHeight - 200);
+
+                    // Не спауним на препятствиях
+                    for (let j = 0; j < gameState.obstacles.length; j++) {
+                        const obs = gameState.obstacles[j];
+                        const dx = obs.x - x;
+                        const dy = obs.y - y;
+                        if (dx * dx + dy * dy < 100 * 100) {
+                            valid = false;
+                            break;
+                        }
+                    }
+
+                    // Не спауним на норках
+                    for (let j = 0; j < gameState.burrows.length; j++) {
+                        const burrow = gameState.burrows[j];
+                        const dx = burrow.x - x;
+                        const dy = burrow.y - y;
+                        if (dx * dx + dy * dy < 120 * 120) {
+                            valid = false;
+                            break;
+                        }
+                    }
+
+                    // Не спауним на других мышеловках
+                    for (let j = 0; j < gameState.traps.length; j++) {
+                        const trap = gameState.traps[j];
+                        const dx = trap.x - x;
+                        const dy = trap.y - y;
+                        if (dx * dx + dy * dy < 100 * 100) {
+                            valid = false;
+                            break;
+                        }
+                    }
+                } while (!valid);
+                gameState.traps.push(new Trap(x, y));
+            }
+
+            // Мыши
+            for (let i = 0; i < levelConfig.mice; i++) {
+                gameState.mice.push(new Mouse(120 + i * 80, 120 + i * 80));
+            }
+
+            // Кошки
+            for (let i = 0; i < levelConfig.cats; i++) {
+                gameState.cats.push(new Cat(
+                    levelConfig.roomWidth - 120 - i * 80,
+                    levelConfig.roomHeight - 120 - i * 80
+                ));
+            }
+
+            // Сыр
+            for (let i = 0; i < levelConfig.cheese; i++) {
+                let x, y, valid;
+                do {
+                    valid = true;
+                    x = 100 + Math.random() * (levelConfig.roomWidth - 200);
+                    y = 100 + Math.random() * (levelConfig.roomHeight - 200);
+
+                    for (let j = 0; j < gameState.obstacles.length; j++) {
+                        const obs = gameState.obstacles[j];
+                        const dx = obs.x - x;
+                        const dy = obs.y - y;
+                        if (dx * dx + dy * dy < 100 * 100) {
+                            valid = false;
+                            break;
+                        }
+                    }
+                    for (let j = 0; j < gameState.traps.length; j++) {
+                        const trap = gameState.traps[j];
+                        const dx = trap.x - x;
+                        const dy = trap.y - y;
+                        if (dx * dx + dy * dy < 80 * 80) {
+                            valid = false;
+                            break;
+                        }
+                    }
+                } while (!valid);
+                gameState.cheese.push(new Cheese(x, y));
+            }
+
+            updateUI();
+            playSound('level');
+        }
+
+        // ==================== UI ====================
+        function updateUI() {
+            // КРИТИЧЕСКОЕ: НЕ обновляем UI если игра не запущена
+            if (!gameState.isRunning) return;
+
+            try {
+                // Быстрое обновление только если есть мыши
+                if (gameState.mice.length === 0) return;
+
+                let aliveCount = 0;
+                let mainHP = 0;
+
+                // Быстрый цикл без излишних проверок
+                const selectedIdx = gameState.selectedMouse;
+                for (let i = 0; i < gameState.mice.length; i++) {
+                    const m = gameState.mice[i];
+                    if (m.alive) aliveCount++;
+                    if (i === selectedIdx) mainHP = m.hp;
+                }
+
+                // Кэшируем элементы чтобы не искать их каждый раз
+                const miceCountEl = document.getElementById('miceCount');
+                const miceHPEl = document.getElementById('miceHP');
+                const cheeseCountEl = document.getElementById('cheeseCount');
+                const totalCheeseEl = document.getElementById('totalCheese');
+                const levelNumberEl = document.getElementById('levelNumber');
+                const staminaEl = document.getElementById('stamina');
+                const fpsEl = document.getElementById('fps');
+
+                // Обновляем только если элементы существуют
+                if (miceCountEl) miceCountEl.textContent = aliveCount;
+                if (miceHPEl) miceHPEl.textContent = Math.round(mainHP);
+                if (cheeseCountEl) cheeseCountEl.textContent = gameState.collectedCheese;
+                if (totalCheeseEl) totalCheeseEl.textContent = gameState.allCheese;
+                if (levelNumberEl) levelNumberEl.textContent = gameState.currentLevel;
+
+                // Безопасная работа со stamina
+                const selectedMouse = gameState.mice[selectedIdx];
+                if (staminaEl && selectedMouse) {
+                    staminaEl.textContent = Math.round(selectedMouse.stamina || 0);
+                }
+
+                if (fpsEl) fpsEl.textContent = gameState.fps || 0;
+            } catch (e) {
+                console.log('updateUI ошибка (некритична):', e);
+                // Не прерываем game loop из-за ошибки в UI
+            }
+        }
+
+        // ==================== ГЛАВНОЙ ЦИКЛ ====================
+        let lastGameOverTime = 0;
+        let gameLoopSafetyCounter = 0;
+
+        function gameLoop() {
+            if (!gameState.isRunning) return;
+            if (gameState.isPaused) {
+                requestAnimationFrame(gameLoop);
+                return;
+            }
+
+            // Защита от infinite loop
+            gameLoopSafetyCounter++;
+            if (gameLoopSafetyCounter > 100000) {
+                console.error('БЕЗОПАСНОСТЬ: Обнаружен потенциальный infinite loop');
+                gameState.isRunning = false;
+                return;
+            }
+
+            try {
+                const now = performance.now();
+                fpsFrames++;
+                if (now - lastFpsTime >= 1000) {
+                    gameState.fps = fpsFrames;
+                    fpsFrames = 0;
+                    lastFpsTime = now;
+                }
+
+                gameState.ctx.fillStyle = gameState.backgroundGradient;
+                gameState.ctx.fillRect(0, 0, gameState.canvas.width, gameState.canvas.height);
+
+                // Обновления
+                for (let i = gameState.mice.length - 1; i >= 0; i--) {
+                    gameState.mice[i].update(gameState.grid, input, gameState);
+                }
+                for (let i = gameState.cats.length - 1; i >= 0; i--) {
+                    gameState.cats[i].update(gameState);
+                }
+                for (let i = gameState.cheese.length - 1; i >= 0; i--) {
+                    gameState.cheese[i].update();
+                }
+                gameState.particles.update();
+
+                gameState.globalNoise = Math.max(0, gameState.globalNoise - 0.8);
+
+                // Отрисовка
+                for (let i = 0; i < gameState.obstacles.length; i++) {
+                    gameState.obstacles[i].draw(gameState.ctx);
+                }
+                for (let i = 0; i < gameState.burrows.length; i++) {
+                    gameState.burrows[i].draw(gameState.ctx);
+                }
+                for (let i = 0; i < gameState.traps.length; i++) {
+                    gameState.traps[i].draw(gameState.ctx);
+                }
+                for (let i = 0; i < gameState.cheese.length; i++) {
+                    gameState.cheese[i].draw(gameState.ctx);
+                }
+                for (let i = 0; i < gameState.cats.length; i++) {
+                    gameState.cats[i].draw(gameState.ctx);
+                }
+                for (let i = 0; i < gameState.mice.length; i++) {
+                    gameState.mice[i].draw(gameState.ctx);
+                }
+
+                gameState.particles.draw(gameState.ctx);
+
+                // КРИТИЧЕСКАЯ ГАРАНТИЯ: globalAlpha всегда = 1 в конце кадра
+                gameState.ctx.globalAlpha = 1;
+                gameState.ctx.fillStyle = '#000';
+
+                updateUI();
+
+                // Проверки условий - ТОЛЬКО если игра все еще работает
+                if (!gameState.isRunning) {
+                    // Критическая защита: если isRunning стал false, выходим немедленно
+                    gameLoopSafetyCounter = 0;
+                    return;
+                }
+
+                let aliveMice = 0;
+                for (let i = 0; i < gameState.mice.length; i++) {
+                    if (gameState.mice[i].alive) aliveMice++;
+                }
+
+                if (aliveMice === 0) {
+                    // КРИТИЧЕСКОЕ: Немедленно отключаем цикл
+                    gameState.isRunning = false;
+                    gameLoopSafetyCounter = 0;
+                    playSound('gameOver');
+
+                    // Очищаем input state чтобы избежать зависания
+                    input.keys = {};
+
+                    // Создаем снимок состояния игры ДО любых DOM операций
+                    const finalLevel = gameState.currentLevel;
+                    const finalCheese = gameState.collectedCheese;
+                    const finalAllCheese = gameState.allCheese;
+                    const finalScore = gameState.score;
+
+                    // НЕ используем setTimeout - он может вызвать проблемы
+                    // Вместо этого показываем экран game over синхронно
+                    try {
+                        const textEl = document.getElementById('gameOverText');
+                        if (textEl) {
+                            textEl.textContent = `Уровень: ${finalLevel}\nСыр собран: ${finalCheese}/${finalAllCheese}\nОчки: ${finalScore}`;
+                        }
+
+                        const statsPanel = document.getElementById('statsPanel');
+                        if (statsPanel) {
+                            // Максимально быстрое построение HTML
+                            statsPanel.innerHTML = `
+                                <div style="background:rgba(255,255,255,0.1);padding:15px;border-radius:10px;text-align:center;border:1px solid rgba(255,255,255,0.2);">
+                                    <div style="font-size:28px;margin-bottom:5px;">🐭</div>
+                                    <div style="font-size:12px;opacity:0.7;">Мыши спасены</div>
+                                    <div style="font-size:24px;font-weight:bold;color:#FFD93D;">${aliveMice}</div>
+                                </div>
+                                <div style="background:rgba(255,255,255,0.1);padding:15px;border-radius:10px;text-align:center;border:1px solid rgba(255,255,255,0.2);">
+                                    <div style="font-size:28px;margin-bottom:5px;">🧀</div>
+                                    <div style="font-size:12px;opacity:0.7;">Сыр собран</div>
+                                    <div style="font-size:24px;font-weight:bold;color:#FFD93D;">${finalCheese}/${finalAllCheese}</div>
+                                </div>
+                                <div style="background:rgba(255,255,255,0.1);padding:15px;border-radius:10px;text-align:center;border:1px solid rgba(255,255,255,0.2);">
+                                    <div style="font-size:28px;margin-bottom:5px;">⭐</div>
+                                    <div style="font-size:12px;opacity:0.7;">Очки</div>
+                                    <div style="font-size:24px;font-weight:bold;color:#FFD93D;">${finalScore}</div>
+                                </div>
+                                <div style="background:rgba(255,255,255,0.1);padding:15px;border-radius:10px;text-align:center;border:1px solid rgba(255,255,255,0.2);">
+                                    <div style="font-size:28px;margin-bottom:5px;">📊</div>
+                                    <div style="font-size:12px;opacity:0.7;">Уровень</div>
+                                    <div style="font-size:24px;font-weight:bold;color:#FFD93D;">${finalLevel}</div>
+                                </div>
+                            `;
+                        }
+
+                        const inputPanel = document.getElementById('scoreInputPanel');
+                        if (inputPanel) inputPanel.style.display = 'block';
+
+                        const playerNameEl = document.getElementById('playerName');
+                        if (playerNameEl) playerNameEl.focus();
+
+                        const gameOverScreen = document.getElementById('gameOverScreen');
+                        if (gameOverScreen) gameOverScreen.classList.add('active');
+                    } catch (e) {
+                        console.error('Критическая ошибка при game over:', e);
+                    }
+
+                    // ПОЛНАЯ ГАРАНТИЯ: не продолжаем game loop
+                    return;
+                }
+
+                if (gameState.cheese.length === 0 && gameState.allCheese > 0) {
+                    // КРИТИЧЕСКОЕ: Немедленно отключаем цикл
+                    gameState.isRunning = false;
+                    gameLoopSafetyCounter = 0;
+                    playSound('victory');
+
+                    // Очищаем input state
+                    input.keys = {};
+
+                    // Создаем снимок состояния ДО любых операций
+                    const completeLevel = gameState.currentLevel;
+                    const completeAliveMice = aliveMice;
+                    const bonusPoints = aliveMice * 100;
+                    const completeFinalScore = gameState.score + gameState.allCheese * (completeLevel * 10) + bonusPoints;
+
+                    // Обновляем score в gameState
+                    gameState.score = completeFinalScore;
+
+                    // Синхронно показываем экран
+                    try {
+                        const textEl = document.getElementById('levelCompleteText');
+                        if (textEl) {
+                            textEl.textContent = `🎉 Уровень ${completeLevel} пройден!\nМыши спасены: ${completeAliveMice}\nОчки: ${completeFinalScore}`;
+                        }
+                        const levelCompleteScreen = document.getElementById('levelCompleteScreen');
+                        if (levelCompleteScreen) levelCompleteScreen.classList.add('active');
+                    } catch (e) {
+                        console.error('Ошибка при level complete:', e);
+                    }
+
+                    // ПОЛНАЯ ГАРАНТИЯ: не продолжаем game loop
+                    return;
+                }
+
+                // Сброс счетчика на каждый успешный цикл
+                gameLoopSafetyCounter = 0;
+                requestAnimationFrame(gameLoop);
+            } catch (e) {
+                console.error('КРИТИЧЕСКАЯ ОШИБКА в gameLoop:', e);
+                gameState.isRunning = false;
+                gameLoopSafetyCounter = 0;
+                // Пробуем восстановиться
+                setTimeout(() => {
+                    if (!gameState.isRunning) {
+                        console.log('Игра остановлена из-за ошибки');
+                    }
+                }, 100);
+            }
+        }
+
+        // ==================== УПРАВЛЕНИЕ ====================
+        document.addEventListener('keydown', (e) => {
+            // Сохраняем оригинальный ключ (Shift, Enter, Space) и lowercase версию для букв
+            const keyName = e.key === ' ' ? 'Space' : (e.key === 'Enter' ? 'Enter' : (e.key === 'Shift' ? 'Shift' : e.key.toLowerCase()));
+            input.keys[keyName] = true;
+
+            if (e.key === ' ') {
+                e.preventDefault();
+                if (gameState.isRunning) {
+                    gameState.isPaused = !gameState.isPaused;
+                    document.getElementById('pauseScreen').classList.toggle('active');
+                    playSound('pause');
+                }
+            }
+
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                if (gameState.isRunning && !gameState.isPaused && gameState.mice.length > 1) {
+                    gameState.selectedMouse = (gameState.selectedMouse + 1) % gameState.mice.length;
+                    let iterations = 0;
+                    while (!gameState.mice[gameState.selectedMouse].alive && iterations < gameState.mice.length) {
+                        gameState.selectedMouse = (gameState.selectedMouse + 1) % gameState.mice.length;
+                        iterations++;
+                    }
+                }
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            const keyName = e.key === ' ' ? 'Space' : (e.key === 'Enter' ? 'Enter' : (e.key === 'Shift' ? 'Shift' : e.key.toLowerCase()));
+            input.keys[keyName] = false;
+        });
+
+        // ==================== СТАРТЕР ====================
+        function startGame() {
+            document.getElementById('menuScreen').classList.remove('active');
+            document.getElementById('pauseScreen').classList.remove('active');
+            document.getElementById('levelCompleteScreen').classList.remove('active');
+            document.getElementById('gameOverScreen').classList.remove('active');
+            gameState.currentLevel = 1;
+            gameState.score = 0;
+            gameState.isRunning = true;
+            gameState.isPaused = false;
+            playSound('button');
+            initGame();
+            gameLoop();
+        }
+
+        function nextLevel() {
+            document.getElementById('levelCompleteScreen').classList.remove('active');
+            gameState.currentLevel++;
+            gameState.isRunning = true;
+            gameState.isPaused = false;
+            playSound('button');
+            initGame();
+            gameLoop();
+        }
+
+        function resumeGame() {
+            gameState.isPaused = false;
+            document.getElementById('pauseScreen').classList.remove('active');
+            playSound('pause');
+        }
+
+        function menuGame() {
+            gameState.isRunning = false;
+            playSound('menu');
+            document.getElementById('menuScreen').classList.add('active');
+            document.getElementById('pauseScreen').classList.remove('active');
+            document.getElementById('levelCompleteScreen').classList.remove('active');
+            document.getElementById('gameOverScreen').classList.remove('active');
+            document.getElementById('leaderboardScreen').style.display = 'none';
+            document.getElementById('scoreInputPanel').style.display = 'none';
+            document.getElementById('playerName').value = '';
+        }
+
+        window.addEventListener('load', () => {
+            console.log('🐭 Игра загружена и оптимизирована!');
+            console.log('✅ Защита от зависания активирована');
+            console.log('✅ Синхронное отображение результатов включено');
+            displayTip();
+
+            // Показываем новый совет каждые 10 секунд
+            setInterval(() => {
+                if (document.getElementById('menuScreen').classList.contains('active')) {
+                    displayTip();
+                }
+            }, 10000);
+
+            // ДИАГНОСТИКА: Проверяем что всё инициализировано правильно
+            console.log('Диагностика игры:');
+            console.log('- input.keys:', Object.keys(input.keys).length === 0 ? '✅ Чисто' : '⚠️ Содержит данные');
+            console.log('- gameState.isRunning:', gameState.isRunning ? 'Запущена' : '✅ Остановлена');
+            console.log('- gameLoopSafetyCounter:', gameLoopSafetyCounter);
+        });
+    </script>
+</body>
+</html>
