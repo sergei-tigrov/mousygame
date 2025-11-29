@@ -83,15 +83,49 @@
         .menu-content p { font-size: clamp(14px, 4vw, 18px); margin: 8px 0; opacity: 0.95; }
         .button {
             background: linear-gradient(135deg, #FF6B6B 0%, #FFD93D 100%);
-            color: white; border: 2px solid white; padding: 10px 20px;
-            font-size: clamp(14px, 4vw, 18px); border-radius: 8px; cursor: pointer; margin: 6px;
-            transition: all 0.3s ease; font-weight: bold;
+            color: white;
+            border: 2px solid white;
+            padding: 16px 32px;
+            font-size: clamp(14px, 4vw, 18px);
+            border-radius: 12px;
+            cursor: pointer;
+            margin: 12px 8px;
+            transition: all 0.2s ease;
+            font-weight: bold;
             -webkit-appearance: none;
             -webkit-tap-highlight-color: transparent;
             touch-action: manipulation;
+            /* КРИТИЧНО для мобиля */
+            min-height: 52px;
+            min-width: 120px;
+            display: inline-block;
+            text-align: center;
+            vertical-align: middle;
+            pointer-events: auto;
+            z-index: 101;
+            position: relative;
+            line-height: 1.2;
+            white-space: nowrap;
         }
-        .button:hover, .button:active { transform: scale(1.05); box-shadow: 0 0 20px rgba(255, 255, 255, 0.5); }
-        .button:active { transform: scale(0.98); }
+        .button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 24px rgba(255, 255, 255, 0.6);
+        }
+        .button:active {
+            transform: scale(0.95);
+            background: linear-gradient(135deg, #FF5252 0%, #FFC300 100%);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+        .button:focus {
+            outline: 3px solid rgba(255, 255, 255, 0.8);
+            outline-offset: 2px;
+        }
+        /* Mobile touch optimization */
+        @supports (touch-action: auto) {
+            .button {
+                -webkit-touch-callout: none;
+            }
+        }
         .hint { font-size: clamp(12px, 3vw, 14px); opacity: 0.75; margin-top: 15px; line-height: 1.4; }
 
         /* Virtual Controls */
@@ -332,7 +366,7 @@
 
     <script>
         // ==================== ВЕРСИЯ ИГРЫ ====================
-        const GAME_VERSION = '2.4.0'; // FIXED: Safari эмодзи + Mobile startup + Error handling
+        const GAME_VERSION = '2.5.0'; // FIXED: Mobile button clickability - larger buttons + touch handlers
 
         // ==================== CROSS-PLATFORM & MOBILE SUPPORT ====================
         const isTouchDevice = () => (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0));
@@ -1918,6 +1952,42 @@
             });
         }
 
+        // ⭐ МОБИЛЬНАЯ ОПТИМИЗАЦИЯ МЕНЮ КНОПОК
+        function setupMobileButtons() {
+            console.log('📱 Инициализация мобильных кнопок...');
+            const allButtons = document.querySelectorAll('.button');
+
+            allButtons.forEach((btn, index) => {
+                // Проверяем что onclick атрибут установлен
+                if (!btn.onclick && !btn.getAttribute('onclick')) {
+                    console.warn(`⚠️ Кнопка ${index} не имеет onclick обработчика!`);
+                }
+
+                // Добавляем явные touch handlers для надежности
+                btn.addEventListener('touchstart', (e) => {
+                    console.log(`👆 Touch start на кнопке: ${btn.textContent}`);
+                    btn.style.transform = 'scale(0.95)';
+                }, { passive: true });
+
+                btn.addEventListener('touchend', (e) => {
+                    console.log(`👆 Touch end на кнопке: ${btn.textContent}`);
+                    btn.style.transform = 'scale(1)';
+                }, { passive: true });
+
+                btn.addEventListener('touchcancel', (e) => {
+                    console.log(`👆 Touch cancel на кнопке: ${btn.textContent}`);
+                    btn.style.transform = 'scale(1)';
+                }, { passive: true });
+
+                // Убедимся что кнопка имеет правильные стили для touch
+                btn.style.WebkitTouchCallout = 'none';
+                btn.style.WebkitUserSelect = 'none';
+                btn.style.touchAction = 'manipulation';
+            });
+
+            console.log(`✅ ${allButtons.length} кнопок инициализировано для мобиля`);
+        }
+
         // Handle device orientation changes
         function handleOrientationChange() {
             const newOrientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
@@ -2084,6 +2154,9 @@
                     controlsHint.textContent = '👆 Используй кнопки внизу экрана для управления!';
                     console.log('✅ Подсказка управления обновлена');
                 }
+
+                // ⭐ КРИТИЧЕСКИ ВАЖНО ДЛЯ МОБИЛЯ: Оптимизируем кнопки меню для мобильных устройств
+                setupMobileButtons();
             }
 
             // iOS/Safari specific fixes
