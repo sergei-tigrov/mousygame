@@ -625,7 +625,7 @@
 
     <script>
         // ==================== ВЕРСИЯ ИГРЫ ====================
-        const GAME_VERSION = '2.7.0'; // FIXED: Professional virtual joystick - analog stick + action buttons
+        const GAME_VERSION = '2.7.1'; // FIXED: Professional virtual joystick - analog stick + action buttons
 
         // ==================== CROSS-PLATFORM & MOBILE SUPPORT ====================
         const isTouchDevice = () => (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0));
@@ -2179,24 +2179,37 @@
 
         // ==================== УПРАВЛЕНИЕ ====================
         // Touch controls for mobile
+        // ⭐ v2.7.1: ОБНОВЛЕННАЯ ОБРАБОТКА ACTION BUTTONS
         function setupTouchControls() {
+            console.log('⏱️ Инициализация action button handlers...');
             const virtualControls = document.getElementById('virtualControls');
-            if (!virtualControls) return;
+            if (!virtualControls) {
+                console.warn('⚠️ virtualControls не найден');
+                return;
+            }
 
-            const buttons = virtualControls.querySelectorAll('.control-btn');
-            buttons.forEach(btn => {
+            // Обработка action buttons (новая структура v2.7.0+)
+            const actionButtons = virtualControls.querySelectorAll('.action-btn');
+            console.log(`✅ Найдено ${actionButtons.length} action buttons`);
+
+            actionButtons.forEach(btn => {
                 const key = btn.dataset.key;
+                console.log(`📌 Обработка button: ${btn.textContent} (key: ${key})`);
 
+                // Touch handlers
                 btn.addEventListener('touchstart', (e) => {
                     e.preventDefault();
                     input.keys[key] = true;
+                    console.log(`👆 Action button PRESSED: ${key}`);
                 }, { passive: false });
 
                 btn.addEventListener('touchend', (e) => {
                     e.preventDefault();
                     input.keys[key] = false;
+                    console.log(`👆 Action button RELEASED: ${key}`);
                 }, { passive: false });
 
+                // Mouse handlers for testing
                 btn.addEventListener('mousedown', () => {
                     input.keys[key] = true;
                 });
@@ -2208,7 +2221,19 @@
                 btn.addEventListener('mouseleave', () => {
                     input.keys[key] = false;
                 });
+
+                // Click handler for fallback (некоторые браузеры)
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    // Simulate key press
+                    input.keys[key] = true;
+                    setTimeout(() => {
+                        input.keys[key] = false;
+                    }, 50);
+                });
             });
+
+            console.log('✅ Action button handlers инициализированы');
         }
 
         // ⭐ МОБИЛЬНАЯ ОПТИМИЗАЦИЯ МЕНЮ КНОПОК
@@ -2731,6 +2756,57 @@
             document.getElementById('playerName').value = '';
         }
 
+        // ⭐ v2.7.1: СПЕЦИАЛЬНЫЕ ФИКСЫ ДЛЯ IPHONE И МОБИЛЬНЫХ БРАУЗЕРОВ
+        function initializeIOSFixes() {
+            console.log('🍎 Инициализация iOS-specific fixes...');
+
+            // 1. Предотвращаем zoom на double-tap
+            let lastTouchTime = 0;
+            document.addEventListener('touchstart', function(e) {
+                const currentTime = new Date().getTime();
+                const timeSinceLastTouch = currentTime - lastTouchTime;
+                lastTouchTime = currentTime;
+
+                if (timeSinceLastTouch < 300 && e.touches.length === 1) {
+                    e.preventDefault();
+                }
+            }, { passive: false });
+
+            // 2. Отключаем scrolling на мобиле
+            document.addEventListener('touchmove', function(e) {
+                if (e.target === gameState.canvas || e.target.closest('#virtualControls')) {
+                    e.preventDefault();
+                }
+            }, { passive: false });
+
+            // 3. Добавляем touch-action для всех interactive элементов
+            document.querySelectorAll('.action-btn, button, input').forEach(el => {
+                el.style.touchAction = 'manipulation';
+                el.style.webkitTouchCallout = 'none';
+                el.style.webkitUserSelect = 'none';
+            });
+
+            // 4. Убеждаемся что canvas правильно инициализирован
+            const canvas = document.getElementById('gameCanvas');
+            if (canvas) {
+                canvas.style.touchAction = 'none';
+                canvas.style.webkitTouchCallout = 'none';
+                // Forcing repaint on iOS
+                canvas.style.transform = 'translateZ(0)';
+            }
+
+            // 5. Фиксим viewport на iPhone
+            const viewport = document.querySelector('meta[name="viewport"]');
+            if (viewport) {
+                viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0, minimal-ui');
+            }
+
+            console.log('✅ iOS fixes инициализированы');
+        }
+
+        // Вызываем iOS фиксы прямо в начале, не дожидаясь load event
+        initializeIOSFixes();
+
         window.addEventListener('load', () => {
             // Update version display
             const versionDisplay = document.getElementById('versionDisplay');
@@ -2783,7 +2859,12 @@
                 setupMobileInputHandlers();
 
                 // ⭐ v2.7.0: Инициализируем профессиональный джойстик
-                setupJoystick();
+                try {
+                    setupJoystick();
+                } catch (joystickError) {
+                    console.error('⚠️ Ошибка инициализации joystick:', joystickError.message);
+                    console.log('✅ Игра продолжит работать с action buttons вместо joystick');
+                }
             }
 
             // iOS/Safari specific fixes
