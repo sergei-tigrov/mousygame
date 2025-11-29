@@ -892,6 +892,11 @@
                 const isSelected = gameState.selectedMouse === gameState.mice.indexOf(this);
                 const speed = (input.keys['Shift'] && this.stamina > 20) ? CONFIG.mouseSprintSpeed : CONFIG.mouseSpeed;
 
+                // DEBUG: Логируем если есть input для первой (выбранной) мыши
+                if (isSelected && Object.keys(input.keys).length > 0) {
+                    console.log('🐭 Mouse[' + gameState.mice.indexOf(this) + '].update() → input.keys:', input.keys);
+                }
+
                 if (input.keys['w'] || input.keys['ArrowUp']) { this.vy -= speed; isMoving = true; }
                 if (input.keys['s'] || input.keys['ArrowDown']) { this.vy += speed; isMoving = true; }
                 if (input.keys['a'] || input.keys['ArrowLeft']) { this.vx -= speed; isMoving = true; }
@@ -1547,6 +1552,11 @@
             // Мобильные кнопки (Mobile) - может перекрыть оба
             for (let key in inputMobile.keys) {
                 if (inputMobile.keys[key]) merged[key] = true;
+            }
+
+            // DEBUG: Логируем если что-то активно
+            if (Object.keys(merged).length > 0) {
+                console.log('📊 getMergedInput() → merged:', merged);
             }
 
             // Обновляем старый input.keys для совместимости с остальным кодом
@@ -2815,6 +2825,8 @@
             // ⭐ v3.0: ПОЛНОСТЬЮ ПЕРЕРАБОТАНО - ПИШЕТ В inputDesktop
             // БЕЗ КОНФЛИКТОВ с gamepad и mobile input!
 
+            console.log('🔑 KEYDOWN event fired:', e.key);
+
             // БЕЗОПАСНАЯ ПРОВЕРКА: меню открыто?
             const menuScreen = document.getElementById('menuScreen');
             const pauseScreen = document.getElementById('pauseScreen');
@@ -2825,6 +2837,8 @@
                               (pauseScreen?.classList.contains('active')) === true ||
                               (levelCompleteScreen?.classList.contains('active')) === true ||
                               (gameOverScreen?.classList.contains('active')) === true;
+
+            console.log('  isMenuOpen:', isMenuOpen, '| inputDesktop exists:', !!inputDesktop);
 
             // МЕНЮ НАВИГАЦИЯ - ТОЛЬКО если меню явно открыто
             if (isMenuOpen) {
@@ -2858,6 +2872,7 @@
 
                 // ✅ ПИШЕМ В inputDesktop, НЕ в input.keys!
                 inputDesktop.keys[keyName] = true;
+                console.log('  ⌨️ Setting inputDesktop.keys[' + keyName + '] = true → Current keys:', Object.keys(inputDesktop.keys).filter(k => inputDesktop.keys[k]));
 
                 // Пауза (Space)
                 if (e.key === ' ' && gameState.isRunning) {
@@ -2886,6 +2901,7 @@
             // ✅ ПИШЕМ В inputDesktop, НЕ в input.keys!
             if (inputDesktop) {
                 inputDesktop.keys[keyName] = false;
+                console.log('🔑 KEYUP:', keyName, '→ Current keys:', Object.keys(inputDesktop.keys).filter(k => inputDesktop.keys[k]));
             }
         });
 
