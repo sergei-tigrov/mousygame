@@ -1264,7 +1264,10 @@
                 }
 
                 const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-                const maxSpeed = this.target ? 4.5 : 3.0;
+                // ⭐ v3.2.5: maxSpeed должна быть нормализована на deltaTime!
+                // Иначе на 120Hz коты двигаются вдвое быстрее в реальном времени
+                const maxSpeedBase = this.target ? 4.5 : 3.0;
+                const maxSpeed = maxSpeedBase * deltaTime;
                 if (speed > maxSpeed) {
                     this.vx = (this.vx / speed) * maxSpeed;
                     this.vy = (this.vy / speed) * maxSpeed;
