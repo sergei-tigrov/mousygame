@@ -68,7 +68,7 @@
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3); font-weight: bold;
             font-size: 12px;
         }
-        /* ⭐ v3.2.2: Audio toggle button (bottom right) */
+        /* ⭐ v3.6.0: Audio toggle button (bottom right) */
         .audio-toggle-btn {
             background: linear-gradient(135deg, rgba(70, 130, 180, 0.9), rgba(100, 200, 255, 0.9));
             border: 2px solid rgba(255, 255, 255, 0.8);
@@ -539,7 +539,7 @@
             <div style="flex: 1;"></div>
             <div class="ui-bottom" id="controls" style="display: flex; justify-content: space-between; align-items: center;">
                 <span>WASD/↑↓←→ движение | SHIFT спринт | ПРОБЕЛ пауза | TAB мышь | E норка</span>
-                <!-- ⭐ v3.2.2: Audio toggle button in bottom right -->
+                <!-- ⭐ v3.6.0: Audio toggle button in bottom right -->
                 <button id="audioToggleBtn" class="audio-toggle-btn" onclick="toggleAudio()" title="Включить/выключить звук">🔊</button>
             </div>
         </div>
@@ -659,7 +659,7 @@
         </div>
     </div>
 
-        <!-- ⭐ v3.2.3: Скрытый audio элемент для разблокировки Safari iOS Web Audio API -->
+        <!-- ⭐ v3.6.0: Скрытый audio элемент для разблокировки Safari iOS Web Audio API -->
         <audio id="silentAudio" style="display: none;">
             <source src="data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEAQB8AAAB9AAACABAAZGF0YQIAAAAAAA==" type="audio/wav">
         </audio>
@@ -673,7 +673,7 @@
         const isMobileDevice = () => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         const isIOSSafari = () => /Safari/.test(navigator.userAgent) && /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.MSStream;
 
-        // ⭐ v3.0: DEVICE TYPE DEFINITION - для явной изоляции мобильной/десктопной логики
+        // ⭐ v3.6.0: DEVICE TYPE DEFINITION - для явной изоляции мобильной/десктопной логики
         const DEVICE_TYPE = {
             DESKTOP: 'desktop',
             MOBILE: 'mobile'
@@ -682,7 +682,7 @@
         // ✅ Определяем тип устройства один раз при загрузке
         const CURRENT_DEVICE = isMobileDevice() || isTouchDevice() ? DEVICE_TYPE.MOBILE : DEVICE_TYPE.DESKTOP;
 
-        // ⭐ v3.3.0: UNIFIED DOM ELEMENT CACHE - Избегаем 62+ getElementById calls
+        // ⭐ v3.6.0: UNIFIED DOM ELEMENT CACHE - Избегаем 62+ getElementById calls
         // Инициализируется один раз при загрузке страницы
         const DOM = {};
         function initDOMCache() {
@@ -775,8 +775,8 @@
         // ==================== КОНФИГУРАЦИЯ ====================
         const CONFIG = {
             friction: 0.82,
-            mouseSpeed: 1.2,           // ⭐ v3.2: Понижена базовая скорость (было 1.5)
-            mouseSprintSpeed: 2.0,     // ⭐ v3.2: Понижена скорость спринта (было 2.8, дельта: 1.67x)
+            mouseSpeed: 1.2,           // ⭐ v3.6.0: Понижена базовая скорость (было 1.5)
+            mouseSprintSpeed: 2.0,     // ⭐ v3.6.0: Понижена скорость спринта (было 2.8, дельта: 1.67x)
             mouseMaxHP: 100,
             catDamage: 3,
             catSpeed: 2.0,
@@ -1074,7 +1074,7 @@
             }
 
             update(grid, gameState, mergedInput, deltaTime = 1) {
-                // ⭐ v3.5.0: МОДУЛЬНЫЙ UPDATE - вызывает подметоды вместо inline-кода
+                // ⭐ v3.6.0: МОДУЛЬНЫЙ UPDATE - вызывает подметоды вместо inline-кода
                 const input = mergedInput || getMergedInput();
 
                 if (!this.alive) return;
@@ -1105,7 +1105,7 @@
                 this.checkTrapCollisions(gameState);
             }
 
-            // ⭐ v3.5.0: ПОДМЕТОДЫ MOUSE.UPDATE - Разбиение 187 строк на модульные функции
+            // ⭐ v3.6.0: ПОДМЕТОДЫ MOUSE.UPDATE - Разбиение 187 строк на модульные функции
 
             // Обновление движения на основе input
             updateMovement(input, deltaTime) {
@@ -1378,8 +1378,8 @@
             }
 
             update(gameState, deltaTime = 1) {
-                // ⭐ v3.2.1: deltaTime нормализует движение кошек для разных частот экрана
-                // ⭐ v3.2.5: Экспоненциальное затухание friction на разных частотах экрана
+                // ⭐ v3.6.0: deltaTime нормализует движение кошек для разных частот экрана
+                // ⭐ v3.6.0: Экспоненциальное затухание friction на разных частотах экрана
                 const frictionFactor = Math.pow(CONFIG.friction, deltaTime);
                 this.vx *= frictionFactor;
                 this.vy *= frictionFactor;
@@ -1440,7 +1440,7 @@
                 }
 
                 const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-                // ⭐ v3.2.5: maxSpeed должна быть нормализована на deltaTime!
+                // ⭐ v3.6.0: maxSpeed должна быть нормализована на deltaTime!
                 // Иначе на 120Hz коты двигаются вдвое быстрее в реальном времени
                 const maxSpeedBase = this.target ? 4.5 : 3.0;
                 const maxSpeed = maxSpeedBase * deltaTime;
@@ -1526,7 +1526,7 @@
             }
 
             update(deltaTime = 1) {
-                // ⭐ v3.2.1: deltaTime нормализует анимацию для разных частот экрана
+                // ⭐ v3.6.0: deltaTime нормализует анимацию для разных частот экрана
                 this.bobbing += 0.05 * deltaTime;
             }
 
@@ -1717,7 +1717,7 @@
             audioContext: null,
             grid: null,
             fps: 60,
-            // ⭐ v3.2: Кэш DOM элементов (инициализируется один раз, используется 60х/сек)
+            // ⭐ v3.6.0: Кэш DOM элементов (инициализируется один раз, используется 60х/сек)
             domCache: {
                 miceCount: null,
                 miceHP: null,
@@ -1775,7 +1775,7 @@
                 if (inputMobile.keys[key]) merged[key] = true;
             }
 
-            // ⭐ v3.2: Обновляем старый input.keys для совместимости с остальным кодом
+            // ⭐ v3.6.0: Обновляем старый input.keys для совместимости с остальным кодом
             input.keys = merged;
             return input;  // Возвращаем в прежнем формате
         }
@@ -1806,12 +1806,12 @@
         }
 
         let fpsFrames = 0, lastFpsTime = 0;
-        let audioEnabled = true;  // ⭐ v3.2.2: Флаг для toggle звука
+        let audioEnabled = true;  // ⭐ v3.6.0: Флаг для toggle звука
         let audioResumeListenersSetup = false;
-        let audioResumePromise = null;  // ⭐ v3.2.3: Помним Promise от resume() для Safari
+        let audioResumePromise = null;  // ⭐ v3.6.0: Помним Promise от resume() для Safari
 
         // ==================== ЗВУКИ ====================
-        // ⭐ v3.2.3: Инициализация аудио - возвращает Promise для Safari compatibility
+        // ⭐ v3.6.0: Инициализация аудио - возвращает Promise для Safari compatibility
         function initAudio(forceResume = false) {
             if (!gameState.audioContext) {
                 try {
@@ -1823,7 +1823,7 @@
                     gameState.audioContext = new AudioContextClass();
                     console.log(`✅ AudioContext создан (${gameState.audioContext.constructor.name}), state: ${gameState.audioContext.state}`);
 
-                    // ⭐ v3.2.3: Разблокируем Safari iOS при создании context
+                    // ⭐ v3.6.0: Разблокируем Safari iOS при создании context
                     unmuteIOSSafari();
 
                     if (gameState.audioContext.state === 'suspended') {
@@ -1857,13 +1857,13 @@
             return Promise.resolve(gameState.audioContext);
         }
 
-        // ⭐ v3.2.3: Setup слушатели для возобновления
+        // ⭐ v3.6.0: Setup слушатели для возобновления
         function setupAudioGestureListeners() {
             if (audioResumeListenersSetup) return;
             audioResumeListenersSetup = true;
 
             const resumeIfNeeded = () => {
-                // ⭐ v3.2.3: Разблокируем Safari iOS при любом gesture
+                // ⭐ v3.6.0: Разблокируем Safari iOS при любом gesture
                 unmuteIOSSafari();
 
                 if (gameState.audioContext && gameState.audioContext.state === 'suspended') {
@@ -1880,8 +1880,8 @@
             console.log('✅ Audio listeners ready');
         }
 
-        // ⭐ v3.2.3: Toggle звука
-        // ⭐ v3.2.3: Разблокировка Web Audio на iOS Safari (mute switch проблема)
+        // ⭐ v3.6.0: Toggle звука
+        // ⭐ v3.6.0: Разблокировка Web Audio на iOS Safari (mute switch проблема)
         function unmuteIOSSafari() {
             const silentAudio = DOM.silentAudio;
             if (silentAudio) {
@@ -1896,7 +1896,7 @@
             console.log(`🔊 Audio ${audioEnabled ? 'ENABLED' : 'DISABLED'}`);
 
             if (audioEnabled) {
-                // ⭐ v3.2.3: Разблокируем Safari iOS при включении звука
+                // ⭐ v3.6.0: Разблокируем Safari iOS при включении звука
                 unmuteIOSSafari();
                 if (gameState.audioContext && gameState.audioContext.state === 'suspended') {
                     initAudio(true);
@@ -1912,7 +1912,7 @@
             return audioEnabled;
         }
 
-        // ⭐ v3.4.0: ЗВУКОВЫЕ ГЕНЕРАТОРЫ - каждый звук как функция вместо switch-case
+        // ⭐ v3.6.0: ЗВУКОВЫЕ ГЕНЕРАТОРЫ - каждый звук как функция вместо switch-case
         const SOUND_GENERATORS = {
             // ========== СЫРА - весёлый высокий звук ==========
             cheese: (ctx) => {
@@ -2100,7 +2100,7 @@
                 return;
             }
 
-            // ⭐ v3.2.3: Если context suspended, не пытаемся играть
+            // ⭐ v3.6.0: Если context suspended, не пытаемся играть
             if (ctx.state === 'suspended') {
                 console.log(`⚠️ AudioContext suspended, skipping sound (${type})`);
                 return;
@@ -2111,11 +2111,11 @@
                 return;
             }
 
-            // ⭐ v3.2.4: Детальное логирование для Safari дебага
+            // ⭐ v3.6.0: Детальное логирование для Safari дебага
             console.log(`🎵 [${type}] ctx.state=${ctx.state}, sampleRate=${ctx.sampleRate}, currentTime=${ctx.currentTime}`);
 
             try {
-                // ⭐ v3.4.0: Вызов функции из SOUND_GENERATORS вместо switch-statement
+                // ⭐ v3.6.0: Вызов функции из SOUND_GENERATORS вместо switch-statement
                 const generator = SOUND_GENERATORS[type];
                 if (generator) {
                     generator(ctx);
@@ -2123,7 +2123,7 @@
                     console.warn(`⚠️ Unknown sound type: ${type}`);
                 }
             } catch (e) {
-                // ⭐ v3.2.1: Log audio errors for debugging Safari issues
+                // ⭐ v3.6.0: Log audio errors for debugging Safari issues
                 console.error(`❌ Audio error (${type}):`, e.message);
             }
         }
@@ -2264,7 +2264,7 @@
                     if (i === selectedIdx) mainHP = m.hp;
                 }
 
-                // ⭐ v3.2: Используем кэшированные элементы (инициализированы в startGame)
+                // ⭐ v3.6.0: Используем кэшированные элементы (инициализированы в startGame)
                 const cache = gameState.domCache;
                 if (cache.miceCount) cache.miceCount.textContent = aliveCount;
                 if (cache.miceHP) cache.miceHP.textContent = Math.round(mainHP);
@@ -2288,7 +2288,7 @@
         // ==================== ГЛАВНОЙ ЦИКЛ ====================
         let lastGameOverTime = 0;
         let gameLoopSafetyCounter = 0;
-        let lastFrameTime = performance.now();  // ⭐ v3.2.1: Для deltaTime расчета (исправляет скорость на 120Hz экранах)
+        let lastFrameTime = performance.now();  // ⭐ v3.6.0: Для deltaTime расчета (исправляет скорость на 120Hz экранах)
 
         function gameLoop() {
             if (!gameState.isRunning) return;
@@ -2308,7 +2308,7 @@
 
             try {
                 const now = performance.now();
-                const deltaTime = Math.min((now - lastFrameTime) / 16.67, 2);  // ⭐ v3.2.1: Нормализуем к 60FPS (16.67ms per frame), макс 2x для безопасности
+                const deltaTime = Math.min((now - lastFrameTime) / 16.67, 2);  // ⭐ v3.6.0: Нормализуем к 60FPS (16.67ms per frame), макс 2x для безопасности
                 lastFrameTime = now;
 
                 fpsFrames++;
@@ -2324,14 +2324,14 @@
                 // ⭐ v2.9.0: Update gamepad input every frame
                 updateGamepadInput();
 
-                // ⭐ v3.2: ОПТИМИЗАЦИЯ - вычисляем merged input ОДН РАЗ в gameLoop
+                // ⭐ v3.6.0: ОПТИМИЗАЦИЯ - вычисляем merged input ОДН РАЗ в gameLoop
                 // (вместо вызова для каждой мыши 8 раз за кадр)
                 const mergedInput = getMergedInput();
 
 
                 // Обновления
-                // ⭐ v3.2: Mouse.update() получает кэшированный mergedInput
-                // ⭐ v3.2.1: Передаем deltaTime для нормализации движения
+                // ⭐ v3.6.0: Mouse.update() получает кэшированный mergedInput
+                // ⭐ v3.6.0: Передаем deltaTime для нормализации движения
                 for (let i = gameState.mice.length - 1; i >= 0; i--) {
                     gameState.mice[i].update(gameState.grid, gameState, mergedInput, deltaTime);
                 }
@@ -2343,7 +2343,7 @@
                 }
                 gameState.particles.update();
 
-                // ⭐ v3.2.1: globalNoise также зависит от deltaTime
+                // ⭐ v3.6.0: globalNoise также зависит от deltaTime
                 gameState.globalNoise = Math.max(0, gameState.globalNoise - 0.8 * deltaTime);
 
                 // Отрисовка
@@ -2392,7 +2392,7 @@
                     gameLoopSafetyCounter = 0;
                     playSound('gameOver');
 
-                    // ⭐ v3.0: Очищаем input state БЕЗОПАСНО
+                    // ⭐ v3.6.0: Очищаем input state БЕЗОПАСНО
                     clearAllInput();
 
                     // Создаем снимок состояния игры ДО любых DOM операций
@@ -2451,7 +2451,7 @@
                     gameLoopSafetyCounter = 0;
                     playSound('victory');
 
-                    // ⭐ v3.0: Очищаем input state БЕЗОПАСНО
+                    // ⭐ v3.6.0: Очищаем input state БЕЗОПАСНО
                     clearAllInput();
 
                     // Создаем снимок состояния ДО любых операций
@@ -2496,7 +2496,7 @@
 
         // ==================== УПРАВЛЕНИЕ ====================
         // Touch controls for mobile
-        // ⭐ v3.0: MOBILE TOUCH CONTROLS - ПОЛНАЯ ПЕРЕРАБОТКА
+        // ⭐ v3.6.0: MOBILE TOUCH CONTROLS - ПОЛНАЯ ПЕРЕРАБОТКА
         // ОДИН LISTENER per BUTTON + ИЗОЛЯЦИЯ МОБИЛЕЙ
         function setupTouchControls() {
             // ✅ ТОЛЬКО ДЛЯ МОБИЛЬНЫХ УСТРОЙСТВ!
@@ -2559,7 +2559,7 @@
                     console.warn(`⚠️ Кнопка ${index} не имеет onclick обработчика!`);
                 }
 
-                // ⭐ v3.3.0: Используем pointerdown/up вместо multiple touch events
+                // ⭐ v3.6.0: Используем pointerdown/up вместо multiple touch events
                 // Это работает для touch, mouse и pen одновременно
                 btn.addEventListener('pointerdown', (e) => {
                     btn.style.transform = 'scale(0.95)';
@@ -2603,7 +2603,7 @@
             }
         }
 
-        // ⭐ v3.3.0: МОБИЛЬНАЯ ОПТИМИЗАЦИЯ - ОРИЕНТАЦИЯ И UNIFIED EVENT HANDLING
+        // ⭐ v3.6.0: МОБИЛЬНАЯ ОПТИМИЗАЦИЯ - ОРИЕНТАЦИЯ И UNIFIED EVENT HANDLING
         function initMobileOptimization() {
             if (!isMobileDevice()) {
                 console.log('💻 Desktop режим - мобильная оптимизация не требуется');
@@ -2645,7 +2645,7 @@
 
             console.log('✅ Mobile event listeners установлены (unified)');
 
-            // ⭐ v3.3.0: CONSOLIDATED iOS/Safari specific fixes
+            // ⭐ v3.6.0: CONSOLIDATED iOS/Safari specific fixes
             // Apply webkit styles to interactive elements
             document.querySelectorAll('.action-btn, button, input').forEach(el => {
                 el.style.touchAction = 'manipulation';
@@ -2675,7 +2675,7 @@
             try {
                 // 1. Очищаем input state
                 console.log('🔄 Очистка input state...');
-                // ⭐ v3.0: Используем безопасную функцию очистки
+                // ⭐ v3.6.0: Используем безопасную функцию очистки
                 clearAllInput();
 
                 // 2. Получаем canvas
@@ -2805,7 +2805,7 @@
         };
 
         function updateGamepadInput() {
-            // ⭐ v3.0: ПОЛНОСТЬЮ ПЕРЕРАБОТАННЫЙ GAMEPAD INPUT С ОТСЛЕЖИВАНИЕМ СОСТОЯНИЯ
+            // ⭐ v3.6.0: ПОЛНОСТЬЮ ПЕРЕРАБОТАННЫЙ GAMEPAD INPUT С ОТСЛЕЖИВАНИЕМ СОСТОЯНИЯ
             // Теперь ПРАВИЛЬНО очищает ключи когда стик отпущен!
             try {
                 if (!inputGamepad) return; // Безопасность
@@ -3109,7 +3109,7 @@
         function startGame() {
             console.log('🎮 START GAME - Инициализация игры...');
             try {
-                // ⭐ v3.2.4: КРИТИЧЕСКИ! Очищаем input перед началом игры
+                // ⭐ v3.6.0: КРИТИЧЕСКИ! Очищаем input перед началом игры
                 clearAllInput();
                 console.log('✅ Input очищен');
 
@@ -3122,7 +3122,7 @@
                 gameState.isRunning = true;
                 gameState.isPaused = false;
 
-                // ⭐ v3.2: Инициализируем DOM кэш один раз (используется 60х/сек в updateUI)
+                // ⭐ v3.6.0: Инициализируем DOM кэш один раз (используется 60х/сек в updateUI)
                 gameState.domCache.miceCount = DOM.miceCount;
                 gameState.domCache.miceHP = DOM.miceHP;
                 gameState.domCache.cheeseCount = DOM.cheeseCount;
@@ -3131,7 +3131,7 @@
                 gameState.domCache.stamina = DOM.stamina;
                 gameState.domCache.fps = DOM.fps;
 
-                // ⭐ v3.2.3: Инициализируем AudioContext в user gesture context (click START GAME)
+                // ⭐ v3.6.0: Инициализируем AudioContext в user gesture context (click START GAME)
                 console.log('🔊 Initializing audio...');
                 initAudio().then(() => {
                     console.log('🔊 Audio ready, trying sound...');
@@ -3174,7 +3174,7 @@
         }
 
         function nextLevel() {
-            // ⭐ v3.2.4: Очищаем input при переходе на следующий уровень
+            // ⭐ v3.6.0: Очищаем input при переходе на следующий уровень
             clearAllInput();
 
             DOM.levelCompleteScreen.classList.remove('active');
@@ -3246,7 +3246,7 @@
                 // ⭐ КРИТИЧЕСКИ ВАЖНО ДЛЯ МОБИЛЯ: Оптимизируем кнопки меню для мобильных устройств
                 setupMobileButtons();
 
-                // ⭐ v3.3.0: Инициализируем мобильную оптимизацию (unified event handlers)
+                // ⭐ v3.6.0: Инициализируем мобильную оптимизацию (unified event handlers)
                 initMobileOptimization();
             }
 
