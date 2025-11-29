@@ -3284,7 +3284,7 @@
             console.log('- gameState.isRunning:', gameState.isRunning ? 'Запущена' : '✅ Остановлена');
             console.log('- gameLoopSafetyCounter:', gameLoopSafetyCounter);
 
-            // ⭐ ОТДЕЛЬНЫЙ LOOP ДЛЯ КОНТРОЛЛЕРА МЕНЮ - работает ВСЕГДА (даже когда меню открыто)
+            // ⭐ ОТДЕЛЬНЫЙ LOOP ДЛЯ КОНТРОЛЛЕРА МЕНЮ И УРОВНЕЙ - работает ВСЕГДА
             let lastGamepadMenuUpdate = 0;
             let lastGamepadXpress = 0;
             function controllerMenuLoop() {
@@ -3293,11 +3293,12 @@
                 // Всегда обновляем контроллер вход
                 updateGamepadInput();
 
-                // Обработка меню навигации контроллером
+                const mergedInput = getMergedInput();
                 const isMenuOpen = (DOM.menuScreen?.classList.contains('active')) === true;
-                if (isMenuOpen && !gameState.isRunning) {
-                    const mergedInput = getMergedInput();
+                const isLevelCompleteOpen = (DOM.levelCompleteScreen?.classList.contains('active')) === true;
 
+                // ⭐ ОБРАБОТКА ГЛАВНОГО МЕНЮ
+                if (isMenuOpen && !gameState.isRunning) {
                     // Навигация меню с debounce 150ms
                     if (now - lastGamepadMenuUpdate > 150) {
                         if (mergedInput.keys['ArrowUp']) {
@@ -3325,11 +3326,24 @@
                     }
                 }
 
+                // ⭐ ОБРАБОТКА ЭКРАНА ЗАВЕРШЕНИЯ УРОВНЯ
+                if (isLevelCompleteOpen && !gameState.isRunning) {
+                    // X кнопка для перехода на следующий уровень (с debounce 300ms)
+                    if (now - lastGamepadXpress > 300) {
+                        if (mergedInput.keys['Space']) {
+                            console.log('🎮 Next Level - Gamepad X Button');
+                            nextLevel();
+                            playSound('button');
+                            lastGamepadXpress = now;
+                        }
+                    }
+                }
+
                 requestAnimationFrame(controllerMenuLoop);
             }
 
             // Запускаем контроллер меню loop
-            console.log('🎮 Запуск контроллера меню loop...');
+            console.log('🎮 Запуск контроллера меню и уровней loop...');
             controllerMenuLoop();
         });
     </script>
