@@ -342,126 +342,53 @@
         let devicePixelRatio = window.devicePixelRatio || 1;
         let lastOrientationCheck = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
 
-        // ==================== EMOJI FALLBACK SYSTEM FOR SAFARI ====================
-        // Detect which emojis don't render on Safari and use colored shapes instead
-        const emojiShapeMap = {
-            '🐭': { type: 'circle', color: '#FFB6C1', name: 'mouse' },      // Мышь - розовый круг
-            '🧀': { type: 'square', color: '#FFD93D', name: 'cheese' },    // Сыр - жёлтый квадрат
-            '😺': { type: 'circle', color: '#FF8C42', name: 'cat' },       // Кот - оранжевый круг
-            '🕳️': { type: 'circle', color: '#8B4513', name: 'burrow' },   // Норка - коричневый круг
-            '🪤': { type: 'diamond', color: '#DC143C', name: 'trap' },     // Ловушка - красный ромб
-            '✨': { type: 'star', color: '#FFD700', name: 'sparkle' },     // Искры - золотая звезда
-            '💔': { type: 'heart', color: '#FF69B4', name: 'broken_heart' },// Сломанное сердце - розовое сердце
-            '💥': { type: 'star', color: '#FF4500', name: 'explosion' }    // Взрыв - оранжевая звезда
-        };
-
-        function drawEmojiWithFallback(ctx, emoji, x, y, fontSize) {
+        // ==================== РЕНДЕРИНГ ЭМОДЗИ - ПРОСТАЯ СИСТЕМА ====================
+        function drawEmoji(ctx, emoji, x, y, fontSize) {
             ctx.save();
-            try {
-                // Сначала пытаемся нарисовать эмодзи текстом
-                ctx.font = `${fontSize}px Arial, -apple-system, sans-serif`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.globalAlpha = 1;
-
-                // Проверяем, поддерживается ли эмодзи (особенно на Safari)
-                const tempCanvas = document.createElement('canvas');
-                tempCanvas.width = fontSize * 2;
-                tempCanvas.height = fontSize * 2;
-                const tempCtx = tempCanvas.getContext('2d');
-                tempCtx.font = `${fontSize}px Arial, -apple-system, sans-serif`;
-                tempCtx.textAlign = 'center';
-                tempCtx.textBaseline = 'middle';
-                tempCtx.fillStyle = 'white';
-                tempCtx.fillText(emoji, fontSize, fontSize);
-
-                const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-                const hasContent = imageData.data.some(pixel => pixel > 0);
-
-                if (hasContent) {
-                    // Эмодзи рендерится нормально
-                    ctx.fillText(emoji, x, y);
-                } else {
-                    // Используем fallback с цветной фигурой
-                    drawEmojiFallback(ctx, emoji, x, y, fontSize);
-                }
-            } catch (e) {
-                // Если ошибка - используем fallback
-                drawEmojiFallback(ctx, emoji, x, y, fontSize);
-            }
+            ctx.font = `${fontSize}px Arial, -apple-system, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(emoji, x, y);
             ctx.restore();
         }
 
-        function drawEmojiFallback(ctx, emoji, x, y, fontSize) {
-            const shape = emojiShapeMap[emoji];
-            if (!shape) {
-                // Если нет fallback, просто пытаемся нарисовать текст
-                try {
-                    ctx.font = `${fontSize}px Arial`;
-                    ctx.fillText('?', x, y);
-                } catch (e) {}
-                return;
-            }
-
-            const radius = fontSize * 0.6;
+        // Цветные фигуры - простые и видны везде
+        function drawCircle(ctx, x, y, radius, color) {
             ctx.save();
-            ctx.globalAlpha = 1;
-            ctx.fillStyle = shape.color;
-            ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillStyle = color;
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
             ctx.lineWidth = 1;
-
-            switch (shape.type) {
-                case 'circle':
-                    ctx.beginPath();
-                    ctx.arc(x, y, radius, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.stroke();
-                    break;
-                case 'square':
-                    ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
-                    ctx.strokeRect(x - radius, y - radius, radius * 2, radius * 2);
-                    break;
-                case 'diamond':
-                    ctx.beginPath();
-                    ctx.moveTo(x, y - radius);
-                    ctx.lineTo(x + radius, y);
-                    ctx.lineTo(x, y + radius);
-                    ctx.lineTo(x - radius, y);
-                    ctx.closePath();
-                    ctx.fill();
-                    ctx.stroke();
-                    break;
-                case 'heart':
-                    ctx.beginPath();
-                    ctx.moveTo(x, y + radius * 0.4);
-                    ctx.bezierCurveTo(x - radius * 0.6, y - radius * 0.3, x - radius, y, x - radius * 0.3, y + radius * 0.3);
-                    ctx.bezierCurveTo(x, y + radius, x + radius * 0.3, y + radius * 0.3, x + radius, y);
-                    ctx.bezierCurveTo(x + radius * 0.6, y - radius * 0.3, x, y + radius * 0.4, x, y + radius * 0.4);
-                    ctx.fill();
-                    ctx.stroke();
-                    break;
-                case 'star':
-                    drawStar(ctx, x, y, 5, radius, radius * 0.4);
-                    ctx.fill();
-                    ctx.stroke();
-                    break;
-            }
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
             ctx.restore();
         }
 
-        function drawStar(ctx, cx, cy, spikes, outerRadius, innerRadius) {
-            let rot = Math.PI / 2 * 3;
-            let step = Math.PI / spikes;
+        function drawSquare(ctx, x, y, size, color) {
+            ctx.save();
+            ctx.fillStyle = color;
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+            ctx.lineWidth = 1;
+            ctx.fillRect(x - size / 2, y - size / 2, size, size);
+            ctx.strokeRect(x - size / 2, y - size / 2, size, size);
+            ctx.restore();
+        }
+
+        function drawDiamond(ctx, x, y, size, color) {
+            ctx.save();
+            ctx.fillStyle = color;
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+            ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.moveTo(cx, cy - outerRadius);
-            for (let i = 0; i < spikes; i++) {
-                ctx.lineTo(cx + Math.cos(rot) * outerRadius, cy + Math.sin(rot) * outerRadius);
-                rot += step;
-                ctx.lineTo(cx + Math.cos(rot) * innerRadius, cy + Math.sin(rot) * innerRadius);
-                rot += step;
-            }
-            ctx.lineTo(cx, cy - outerRadius);
+            ctx.moveTo(x, y - size / 2);
+            ctx.lineTo(x + size / 2, y);
+            ctx.lineTo(x, y + size / 2);
+            ctx.lineTo(x - size / 2, y);
             ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
         }
 
         function getOptimalCanvasSize() {
@@ -634,7 +561,8 @@
                 for (let i = 0; i < this.active.length; i++) {
                     const p = this.active[i];
                     ctx.globalAlpha = p.life;
-                    drawEmojiWithFallback(ctx, p.emoji, p.x, p.y, 20 * p.life);
+                    // Частицы - пытаемся эмодзи, но могут быть невидимы
+                    drawEmoji(ctx, p.emoji, p.x, p.y, 20 * p.life);
                 }
             }
         }
@@ -876,7 +804,8 @@
                 }
 
                 ctx.globalAlpha = alpha;
-                drawEmojiWithFallback(ctx, this.emoji, this.x, this.y, fontSize);
+                // Рисуем мышь розовым кругом - видна везде!
+                drawCircle(ctx, this.x, this.y, this.radius * 0.8, '#FFB6C1');
 
                 // Если в норке, показываем эффект "укрытия"
                 if (this.inBurrow) {
@@ -1053,9 +982,9 @@
                 ctx.fill();
                 ctx.restore();
 
-                // Кошка ВСЕГДА полностью видна
+                // Кошка ВСЕГДА полностью видна - оранжевый круг
                 ctx.globalAlpha = 1; // КРИТИЧНО: гарантируем 100% видимость
-                drawEmojiWithFallback(ctx, this.emoji, this.x, this.y, this.radius * 2);
+                drawCircle(ctx, this.x, this.y, this.radius * 0.9, '#FF8C42');
                 ctx.restore();
             }
         }
@@ -1071,7 +1000,8 @@
 
             draw(ctx) {
                 ctx.globalAlpha = 1;
-                drawEmojiWithFallback(ctx, this.emoji, this.x, this.y, this.radius * 2);
+                // Препятствия - рисуем эмодзи если возможно, это декоративные объекты
+                drawEmoji(ctx, this.emoji, this.x, this.y, this.radius * 2);
             }
         }
 
@@ -1090,8 +1020,8 @@
 
             draw(ctx) {
                 const bobOffset = Math.sin(this.bobbing) * 3;
-                ctx.globalAlpha = 1;
-                drawEmojiWithFallback(ctx, this.emoji, this.x, this.y + bobOffset, this.radius * 2);
+                // Сыр - жёлтый квадрат, видны везде!
+                drawSquare(ctx, this.x, this.y + bobOffset, this.radius * 2.4, '#FFD93D');
             }
         }
 
@@ -1104,8 +1034,8 @@
             }
 
             draw(ctx) {
-                ctx.globalAlpha = 1;
-                drawEmojiWithFallback(ctx, this.emoji, this.x, this.y, this.radius * 2);
+                // Норка - коричневый круг, видна везде!
+                drawCircle(ctx, this.x, this.y, this.radius * 0.85, '#8B4513');
             }
         }
 
@@ -1118,8 +1048,8 @@
             }
 
             draw(ctx) {
-                ctx.globalAlpha = 1;
-                drawEmojiWithFallback(ctx, this.emoji, this.x, this.y, this.radius * 2);
+                // Мышеловка - красный ромб, видна везде!
+                drawDiamond(ctx, this.x, this.y, this.radius * 2.4, '#DC143C');
             }
         }
 
@@ -1504,23 +1434,32 @@
 
         // ==================== ИНИЦИАЛИЗАЦИЯ ====================
         function initGame() {
-            // Сброс счетчика безопасности
-            gameLoopSafetyCounter = 0;
+            console.log(`📍 initGame() - Level ${gameState.currentLevel}`);
+            try {
+                // Сброс счетчика безопасности
+                gameLoopSafetyCounter = 0;
 
-            gameState.canvas = document.getElementById('gameCanvas');
-            gameState.ctx = gameState.canvas.getContext('2d');
+                gameState.canvas = document.getElementById('gameCanvas');
+                if (!gameState.canvas) throw new Error('Canvas not found!');
+                console.log('✅ Canvas найден');
 
-            const levelConfig = getLevelConfig(gameState.currentLevel);
+                gameState.ctx = gameState.canvas.getContext('2d');
+                if (!gameState.ctx) throw new Error('Canvas context failed!');
+                console.log('✅ Context инициализирован');
 
-            // Responsive canvas sizing - use optimal size but respect level requirements
-            const optimalSize = getOptimalCanvasSize();
-            const canvasWidth = Math.min(levelConfig.roomWidth, optimalSize.width);
-            const canvasHeight = Math.min(levelConfig.roomHeight, optimalSize.height);
+                const levelConfig = getLevelConfig(gameState.currentLevel);
+                console.log(`✅ Level config загружена: ${levelConfig.mice}м, ${levelConfig.cats}к, ${levelConfig.cheese}ч`);
 
-            gameState.canvas.width = canvasWidth;
-            gameState.canvas.height = canvasHeight;
+                // Responsive canvas sizing - use optimal size but respect level requirements
+                const optimalSize = getOptimalCanvasSize();
+                const canvasWidth = Math.min(levelConfig.roomWidth, optimalSize.width);
+                const canvasHeight = Math.min(levelConfig.roomHeight, optimalSize.height);
 
-            gameState.grid = new SpatialGrid(levelConfig.roomWidth, levelConfig.roomHeight, 100);
+                gameState.canvas.width = canvasWidth;
+                gameState.canvas.height = canvasHeight;
+                console.log(`✅ Canvas размер: ${canvasWidth}x${canvasHeight}`);
+
+                gameState.grid = new SpatialGrid(levelConfig.roomWidth, levelConfig.roomHeight, 100);
             gameState.particles = new ParticlePool(500);
 
             gameState.backgroundGradient = gameState.ctx.createLinearGradient(0, 0, gameState.canvas.width, gameState.canvas.height);
@@ -1679,6 +1618,15 @@
                 gameState.cheese.push(new Cheese(x, y));
             }
 
+                console.log(`✅ initGame завершена: ${gameState.mice.length}м, ${gameState.cats.length}к, ${gameState.cheese.length}ч`);
+            } catch (e) {
+                console.error('❌ ERROR in initGame:', e.message);
+                console.error(e.stack);
+                alert('Ошибка инициализации игры!\n' + e.message);
+                gameState.isRunning = false;
+                return;
+            }
+
             updateUI();
             playSound('level');
         }
@@ -1738,6 +1686,12 @@
 
         function gameLoop() {
             if (!gameState.isRunning) return;
+
+            // Логирование только на первый кадр
+            if (gameLoopSafetyCounter === 0) {
+                console.log('▶️ gameLoop STARTED! Первый кадр отрисовки');
+            }
+
             if (gameState.isPaused) {
                 requestAnimationFrame(gameLoop);
                 return;
@@ -1762,6 +1716,12 @@
 
                 gameState.ctx.fillStyle = gameState.backgroundGradient;
                 gameState.ctx.fillRect(0, 0, gameState.canvas.width, gameState.canvas.height);
+
+                // Логирование только на первый кадр
+                if (gameLoopSafetyCounter === 1) {
+                    console.log(`🎨 Canvas rendering: ${gameState.canvas.width}x${gameState.canvas.height}`);
+                    console.log(`🎮 Game objects:${gameState.mice.length}м, ${gameState.cats.length}к, ${gameState.cheese.length}ч, ${gameState.obstacles.length}пр`);
+                }
 
                 // Обновления
                 for (let i = gameState.mice.length - 1; i >= 0; i--) {
@@ -2022,17 +1982,26 @@
 
         // ==================== СТАРТЕР ====================
         function startGame() {
-            document.getElementById('menuScreen').classList.remove('active');
-            document.getElementById('pauseScreen').classList.remove('active');
-            document.getElementById('levelCompleteScreen').classList.remove('active');
-            document.getElementById('gameOverScreen').classList.remove('active');
-            gameState.currentLevel = 1;
-            gameState.score = 0;
-            gameState.isRunning = true;
-            gameState.isPaused = false;
-            playSound('button');
-            initGame();
-            gameLoop();
+            console.log('🎮 START GAME - Инициализация игры...');
+            try {
+                document.getElementById('menuScreen').classList.remove('active');
+                document.getElementById('pauseScreen').classList.remove('active');
+                document.getElementById('levelCompleteScreen').classList.remove('active');
+                document.getElementById('gameOverScreen').classList.remove('active');
+                gameState.currentLevel = 1;
+                gameState.score = 0;
+                gameState.isRunning = true;
+                gameState.isPaused = false;
+                console.log('🎮 Меню скрыто, состояние установлено');
+                playSound('button');
+                console.log('🎮 Вызов initGame()...');
+                initGame();
+                console.log('🎮 initGame() завершена, вызов gameLoop()...');
+                gameLoop();
+                console.log('✅ Game started успешно!');
+            } catch (e) {
+                console.error('❌ ERROR in startGame:', e.message, e.stack);
+            }
         }
 
         function nextLevel() {
