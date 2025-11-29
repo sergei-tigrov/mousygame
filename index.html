@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="ru">
-<!-- 🎮 v3.2.3: DEEP SAFARI AUDIO FIX + BUTTON RELOCATED - Updated 2025-11-30 -->
+<!-- 🎮 v3.2.4: SAFARI iOS MUTE SWITCH FIX (REAL SOLUTION) - Updated 2025-11-30 -->
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
@@ -548,7 +548,7 @@
             <div class="menu-content">
                 <div class="title">🐭 МЫШИНЫЕ ПРЯТКИ 👀</div>
                 <p>Помоги мышкам спрятаться от кошек!</p>
-                <p style="font-size: 11px; opacity: 0.6; margin-bottom: 10px;">Версия <span id="versionDisplay">3.2.3</span></p>
+                <p style="font-size: 11px; opacity: 0.6; margin-bottom: 10px;">Версия <span id="versionDisplay">3.2.4</span></p>
                 <button class="button" onclick="startGame()">▶️ НАЧАТЬ ИГРУ</button>
                 <div class="hint" id="menuTip" style="
                     background: rgba(255, 255, 255, 0.1);
@@ -659,9 +659,14 @@
         </div>
     </div>
 
+        <!-- ⭐ v3.2.3: Скрытый audio элемент для разблокировки Safari iOS Web Audio API -->
+        <audio id="silentAudio" style="display: none;">
+            <source src="data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEAQB8AAAB9AAACABAAZGF0YQIAAAAAAA==" type="audio/wav">
+        </audio>
+
     <script>
         // ==================== ВЕРСИЯ ИГРЫ ====================
-        const GAME_VERSION = '3.2.3'; // ⭐ SAFARI AUDIO FIX + AUDIO TOGGLE - Proper AudioContext management & diagnostic logging
+        const GAME_VERSION = '3.2.4'; // ⭐ SAFARI AUDIO FIX + AUDIO TOGGLE - Proper AudioContext management & diagnostic logging
 
         // ==================== CROSS-PLATFORM & MOBILE SUPPORT ====================
         const isTouchDevice = () => (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0));
@@ -1639,6 +1644,9 @@
                     gameState.audioContext = new AudioContextClass();
                     console.log(`✅ AudioContext создан (${gameState.audioContext.constructor.name}), state: ${gameState.audioContext.state}`);
 
+                    // ⭐ v3.2.3: Разблокируем Safari iOS при создании context
+                    unmuteIOSSafari();
+
                     if (gameState.audioContext.state === 'suspended') {
                         console.log('⚠️ AudioContext suspended - resuming...');
                         audioResumePromise = gameState.audioContext.resume().then(() => {
@@ -1676,6 +1684,9 @@
             audioResumeListenersSetup = true;
 
             const resumeIfNeeded = () => {
+                // ⭐ v3.2.3: Разблокируем Safari iOS при любом gesture
+                unmuteIOSSafari();
+
                 if (gameState.audioContext && gameState.audioContext.state === 'suspended') {
                     console.log('🔊 Resuming from gesture listener...');
                     audioResumePromise = gameState.audioContext.resume().catch(e => {
@@ -1691,12 +1702,26 @@
         }
 
         // ⭐ v3.2.3: Toggle звука
+        // ⭐ v3.2.3: Разблокировка Web Audio на iOS Safari (mute switch проблема)
+        function unmuteIOSSafari() {
+            const silentAudio = document.getElementById('silentAudio');
+            if (silentAudio) {
+                silentAudio.play().catch(e => {
+                    console.log('🔇 iOS unmute attempt:', e.message);
+                });
+            }
+        }
+
         function toggleAudio() {
             audioEnabled = !audioEnabled;
             console.log(`🔊 Audio ${audioEnabled ? 'ENABLED' : 'DISABLED'}`);
 
-            if (audioEnabled && gameState.audioContext && gameState.audioContext.state === 'suspended') {
-                initAudio(true);
+            if (audioEnabled) {
+                // ⭐ v3.2.3: Разблокируем Safari iOS при включении звука
+                unmuteIOSSafari();
+                if (gameState.audioContext && gameState.audioContext.state === 'suspended') {
+                    initAudio(true);
+                }
             }
 
             const btn = document.getElementById('audioToggleBtn');
