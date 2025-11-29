@@ -1077,6 +1077,9 @@
                     if (DOM.scoreInputPanel) DOM.scoreInputPanel.style.display = 'block';
                     break;
             }
+            
+            // ⭐ v3.6.0: ФИЧА - Инициализируем навигацию по меню для джойстика
+            initMenuNavigation();
         }
 
         // ==================== КЛАССЫ ====================
@@ -1196,7 +1199,8 @@
                     const burrowRange = (CONFIG.burrowRadius + this.radius) * (CONFIG.burrowRadius + this.radius);
                     if (getDistanceSq(this.x, this.y, burrow.x, burrow.y) < burrowRange) {
                         nearBurrow = true;
-                        if (isSelected && input.keys['e'] && !this.inBurrow) {
+                        // ⭐ v3.6.0: ФИЧА - ЛЮБ АЯ мышь может прятаться в норку, не только ведущая!
+                        if (input.keys['e'] && !this.inBurrow) {
                             this.inBurrow = true;
                             playSound('burrow');
                         }
@@ -2314,6 +2318,7 @@
         let lastGameOverTime = 0;
         let gameLoopSafetyCounter = 0;
         let lastFrameTime = performance.now();  // ⭐ v3.6.0: Для deltaTime расчета (исправляет скорость на 120Hz экранах)
+        let lastMouseSwitchTime = 0;  // ⭐ v3.6.0: Для debounce Tab переключения (300ms)
 
         function gameLoop() {
             if (!gameState.isRunning) return;
@@ -2353,6 +2358,17 @@
                 // (вместо вызова для каждой мыши 8 раз за кадр)
                 const mergedInput = getMergedInput();
 
+                // ⭐ v3.6.0: ФИЧА - Переключение мыши на Tab (работает и на клавиатуре и на джойстике)
+                if (mergedInput.keys['Tab'] && gameState.mice.length > 1 && now - lastMouseSwitchTime > 300) {
+                    gameState.selectedMouse = (gameState.selectedMouse + 1) % gameState.mice.length;
+                    let iterations = 0;
+                    while (!gameState.mice[gameState.selectedMouse].alive && iterations < gameState.mice.length) {
+                        gameState.selectedMouse = (gameState.selectedMouse + 1) % gameState.mice.length;
+                        iterations++;
+                    }
+                    lastMouseSwitchTime = now;
+                    console.log(`🐭 Переключение на мышь #${gameState.selectedMouse + 1}`);
+                }
 
                 // Обновления
                 // ⭐ v3.6.0: Mouse.update() получает кэшированный mergedInput
@@ -2407,8 +2423,21 @@
                 }
 
                 let aliveMice = 0;
+                let lastAliveMouse = -1;  // Индекс последней живой мыши
                 for (let i = 0; i < gameState.mice.length; i++) {
-                    if (gameState.mice[i].alive) aliveMice++;
+                    if (gameState.mice[i].alive) {
+                        aliveMice++;
+                        lastAliveMouse = i;
+                    }
+                }
+
+                // ⭐ v3.6.0: ФИЧА - Автоматическое переключение на последнюю мышь
+                // Если осталась одна живая мышь и текущая мышь мертва, переключимся на живую
+                if (aliveMice === 1 && lastAliveMouse !== -1) {
+                    if (!gameState.mice[gameState.selectedMouse].alive) {
+                        gameState.selectedMouse = lastAliveMouse;
+                        console.log(`🐭 Автоматическое переключение на последнюю мышь #${lastAliveMouse + 1}`);
+                    }
                 }
 
                 if (aliveMice === 0) {
@@ -3007,8 +3036,21 @@
             // Получаем все видимые кнопки в активном экране
             const buttons = Array.from(activeScreen.querySelectorAll('.button')).filter(btn => {
                 const style = window.getComputedStyle(btn);
-                return style.display !== 'none' && style.visibility !== 'hidden';
+                const isVisible = style.display !== 'none' && style.visibility !== 'hidden';
+                return isVisible;
             });
+
+            // ⭐ v3.6.0: DEBUG - Логируем найденные кнопки
+            if (buttons.length === 0) {
+                console.warn(`⚠️ Меню ${screenName}: НЕ НАЙДЕНО ВИДИМЫХ КНОПОК!`);
+                // Для отладки попробуем найти ВСЕ кнопки, даже скрытые
+                const allButtons = Array.from(activeScreen.querySelectorAll('.button'));
+                console.log(`  Всего кнопок найдено: ${allButtons.length}`);
+                allButtons.forEach((btn, idx) => {
+                    const style = window.getComputedStyle(btn);
+                    console.log(`  [${idx}] ${btn.textContent.trim().substring(0, 30)} - display:${style.display}, visibility:${style.visibility}`);
+                });
+            }
 
             return buttons;
         }
