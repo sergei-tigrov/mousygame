@@ -686,38 +686,42 @@
         // Инициализируется один раз при загрузке страницы
         const DOM = {};
         function initDOMCache() {
-            DOM.gameCanvas = DOM.gameCanvas;
+            DOM.gameCanvas = document.getElementById('gameCanvas');
             DOM.canvas = DOM.gameCanvas;  // Альтернативное имя для совместимости
-            DOM.gameOverScreen = DOM.gameOverScreen;
-            DOM.pauseScreen = DOM.pauseScreen;
-            DOM.levelCompleteScreen = DOM.levelCompleteScreen;
-            DOM.menuScreen = DOM.menuScreen;
-            DOM.virtualControls = DOM.virtualControls;
-            DOM.playerName = DOM.playerName;
-            DOM.leaderboardScreen = DOM.leaderboardScreen;
-            DOM.leaderboardContent = DOM.leaderboardContent;
-            DOM.scoreInputPanel = DOM.scoreInputPanel;
-            DOM.levelNumber = DOM.levelNumber;
-            DOM.cheeseCount = DOM.cheeseCount;
-            DOM.totalCheese = DOM.totalCheese;
-            DOM.miceCount = DOM.miceCount;
-            DOM.miceHP = DOM.miceHP;
-            DOM.stamina = DOM.stamina;
-            DOM.fps = DOM.fps;
-            DOM.controls = DOM.controls;
-            DOM.controllerIndicator = DOM.controllerIndicator;
-            DOM.versionDisplay = DOM.versionDisplay;
-            DOM.statsPanel = DOM.statsPanel;
-            DOM.silentAudio = DOM.silentAudio;
-            DOM.orientationPrompt = DOM.orientationPrompt;
-            DOM.gameOverText = DOM.gameOverText;
-            DOM.levelCompleteText = DOM.levelCompleteText;
-            DOM.menuTip = DOM.menuTip;
-            DOM.audioToggleBtn = DOM.audioToggleBtn;
+            DOM.gameOverScreen = document.getElementById('gameOverScreen');
+            DOM.pauseScreen = document.getElementById('pauseScreen');
+            DOM.levelCompleteScreen = document.getElementById('levelCompleteScreen');
+            DOM.menuScreen = document.getElementById('menuScreen');
+            DOM.virtualControls = document.getElementById('virtualControls');
+            DOM.playerName = document.getElementById('playerName');
+            DOM.leaderboardScreen = document.getElementById('leaderboardScreen');
+            DOM.leaderboardContent = document.getElementById('leaderboardContent');
+            DOM.scoreInputPanel = document.getElementById('scoreInputPanel');
+            DOM.levelNumber = document.getElementById('levelNumber');
+            DOM.cheeseCount = document.getElementById('cheeseCount');
+            DOM.totalCheese = document.getElementById('totalCheese');
+            DOM.miceCount = document.getElementById('miceCount');
+            DOM.miceHP = document.getElementById('miceHP');
+            DOM.stamina = document.getElementById('stamina');
+            DOM.fps = document.getElementById('fps');
+            DOM.controls = document.getElementById('controls');
+            DOM.controllerIndicator = document.getElementById('controllerIndicator');
+            DOM.versionDisplay = document.getElementById('versionDisplay');
+            DOM.statsPanel = document.getElementById('statsPanel');
+            DOM.silentAudio = document.getElementById('silentAudio');
+            DOM.orientationPrompt = document.getElementById('orientationPrompt');
+            DOM.gameOverText = document.getElementById('gameOverText');
+            DOM.levelCompleteText = document.getElementById('levelCompleteText');
+            DOM.menuTip = document.getElementById('menuTip');
+            DOM.audioToggleBtn = document.getElementById('audioToggleBtn');
             DOM.viewportMeta = document.querySelector('meta[name="viewport"]');
         }
-        // Инициализируем кэш сразу, не дожидаясь load event
-        initDOMCache();
+        // Инициализируем кэш только когда DOM готов
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initDOMCache);
+        } else {
+            initDOMCache();
+        }
 
         let devicePixelRatio = window.devicePixelRatio || 1;
         let lastOrientationCheck = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
@@ -1019,12 +1023,12 @@
 
         // Скрывает все игровые экраны
         function hideAllScreens() {
-            DOM.menuScreen.classList.remove('active');
-            DOM.pauseScreen.classList.remove('active');
-            DOM.levelCompleteScreen.classList.remove('active');
-            DOM.gameOverScreen.classList.remove('active');
-            DOM.leaderboardScreen.style.display = 'none';
-            DOM.scoreInputPanel.style.display = 'none';
+            if (DOM.menuScreen) DOM.menuScreen.classList.remove('active');
+            if (DOM.pauseScreen) DOM.pauseScreen.classList.remove('active');
+            if (DOM.levelCompleteScreen) DOM.levelCompleteScreen.classList.remove('active');
+            if (DOM.gameOverScreen) DOM.gameOverScreen.classList.remove('active');
+            if (DOM.leaderboardScreen) DOM.leaderboardScreen.style.display = 'none';
+            if (DOM.scoreInputPanel) DOM.scoreInputPanel.style.display = 'none';
         }
 
         // Показывает конкретный экран (скрывая остальные)
@@ -1032,24 +1036,24 @@
             hideAllScreens();
             switch (screenType) {
                 case 'menu':
-                    DOM.menuScreen.classList.add('active');
+                    if (DOM.menuScreen) DOM.menuScreen.classList.add('active');
                     break;
                 case 'pause':
-                    DOM.pauseScreen.classList.add('active');
+                    if (DOM.pauseScreen) DOM.pauseScreen.classList.add('active');
                     break;
                 case 'levelComplete':
-                    DOM.levelCompleteScreen.classList.add('active');
+                    if (DOM.levelCompleteScreen) DOM.levelCompleteScreen.classList.add('active');
                     break;
                 case 'gameOver':
-                    DOM.gameOverScreen.classList.add('active');
-                    DOM.scoreInputPanel.style.display = 'block';
+                    if (DOM.gameOverScreen) DOM.gameOverScreen.classList.add('active');
+                    if (DOM.scoreInputPanel) DOM.scoreInputPanel.style.display = 'block';
                     if (DOM.playerName) DOM.playerName.focus();
                     break;
                 case 'leaderboard':
-                    DOM.leaderboardScreen.style.display = 'block';
+                    if (DOM.leaderboardScreen) DOM.leaderboardScreen.style.display = 'block';
                     break;
                 case 'scoreInput':
-                    DOM.scoreInputPanel.style.display = 'block';
+                    if (DOM.scoreInputPanel) DOM.scoreInputPanel.style.display = 'block';
                     break;
             }
         }
