@@ -2005,6 +2005,9 @@
         function initGame() {
             console.log(`📍 initGame() - Level ${gameState.currentLevel}`);
             try {
+                // ⭐ v3.2.4: Очищаем input перед инициализацией уровня
+                clearAllInput();
+
                 // Сброс счетчика безопасности
                 gameLoopSafetyCounter = 0;
 
@@ -3076,6 +3079,10 @@
         function startGame() {
             console.log('🎮 START GAME - Инициализация игры...');
             try {
+                // ⭐ v3.2.4: КРИТИЧЕСКИ! Очищаем input перед началом игры
+                clearAllInput();
+                console.log('✅ Input очищен');
+
                 // Скрываем меню
                 document.getElementById('menuScreen').classList.remove('active');
                 document.getElementById('pauseScreen').classList.remove('active');
@@ -3140,6 +3147,9 @@
         }
 
         function nextLevel() {
+            // ⭐ v3.2.4: Очищаем input при переходе на следующий уровень
+            clearAllInput();
+
             document.getElementById('levelCompleteScreen').classList.remove('active');
             gameState.currentLevel++;
             gameState.isRunning = true;
