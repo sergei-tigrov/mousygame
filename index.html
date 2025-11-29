@@ -512,7 +512,7 @@
             <div class="menu-content">
                 <div class="title">🐭 МЫШИНЫЕ ПРЯТКИ 👀</div>
                 <p>Помоги мышкам спрятаться от кошек!</p>
-                <p style="font-size: 11px; opacity: 0.6; margin-bottom: 10px;">Версия <span id="versionDisplay">2.9.2</span></p>
+                <p style="font-size: 11px; opacity: 0.6; margin-bottom: 10px;">Версия <span id="versionDisplay">2.9.3</span></p>
                 <button class="button" onclick="startGame()">▶️ НАЧАТЬ ИГРУ</button>
                 <div class="hint" id="menuTip" style="
                     background: rgba(255, 255, 255, 0.1);
@@ -625,7 +625,7 @@
 
     <script>
         // ==================== ВЕРСИЯ ИГРЫ ====================
-        const GAME_VERSION = '2.9.2'; // FIXED: Hybrid input - keyboard + controller + touch all work together
+        const GAME_VERSION = '2.9.3'; // FIXED: Simplified gamepad input - only adds, never blocks keyboard
 
         // ==================== CROSS-PLATFORM & MOBILE SUPPORT ====================
         const isTouchDevice = () => (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0));
@@ -2504,93 +2504,67 @@
         };
 
         function updateGamepadInput() {
-            const gamepads = navigator.getGamepads ? navigator.getGamepads() : (navigator.webkitGetGamepads ? navigator.webkitGetGamepads() : []);
-            if (!gamepads || gamepads.length === 0) {
-                if (gamepadState.connected) {
-                    gamepadState.connected = false;
-                    console.log('🎮 Контроллер отключен');
+            // ⭐ v2.9.3: ПРОСТОЙ И НАДЕЖНЫЙ GAMEPAD INPUT
+            // КОНТРОЛЛЕР ПРОСТО ДОБАВЛЯЕТСЯ К УПРАВЛЕНИЮ, НЕ ЗАМЕНЯЕТ!
+            try {
+                if (!input || !input.keys) return; // Безопасность
+
+                const gamepads = navigator.getGamepads ? navigator.getGamepads() : (navigator.webkitGetGamepads ? navigator.webkitGetGamepads() : []);
+                if (!gamepads || gamepads.length === 0) {
+                    if (gamepadState.connected) {
+                        gamepadState.connected = false;
+                        updateControllerIndicator();
+                    }
+                    return;
+                }
+
+                const gamepad = gamepads[0];
+                if (!gamepad) return;
+
+                // Статус подключения
+                if (!gamepadState.connected) {
+                    gamepadState.connected = true;
+                    console.log('✅ Контроллер подключен:', gamepad.id);
+                    playSound('button');
                     updateControllerIndicator();
                 }
-                return;
-            }
 
-            const gamepad = gamepads[0];
-            if (!gamepad) return;
+                // ⭐ ЛЕВЫЙ СТИК - ДОБАВЛЯЕМ к управлению (не заменяем!)
+                const stickX = gamepad.axes[0] || 0;
+                const stickY = gamepad.axes[1] || 0;
+                const deadZone = 0.15;
 
-            // Обновляем статус подключения
-            if (!gamepadState.connected) {
-                gamepadState.connected = true;
-                console.log('✅ Контроллер подключен!', gamepad.id);
-                playSound('button');  // Звук подтверждения
-                updateControllerIndicator();
-            }
+                // Просто добавляем от контроллера, если стик движется
+                if (Math.abs(stickY) > deadZone) {
+                    if (stickY < -0.3) input.keys['ArrowUp'] = true;
+                    if (stickY > 0.3) input.keys['ArrowDown'] = true;
+                }
+                if (Math.abs(stickX) > deadZone) {
+                    if (stickX < -0.3) input.keys['ArrowLeft'] = true;
+                    if (stickX > 0.3) input.keys['ArrowRight'] = true;
+                }
 
-            // ⭐ ЛЕВЫЙ СТИК - ДВИЖЕНИЕ (axes 0, 1)
-            // ⭐ v2.9.2: HYBRID INPUT - Объединяем контроллер + клавиатуру, не заменяем!
-            const leftStickX = gamepad.axes[0];
-            const leftStickY = gamepad.axes[1];
+                // ⭐ КНОПКИ - ДОБАВЛЯЕМ к управлению
+                if (gamepad.buttons[0]?.pressed) input.keys['Space'] = true;  // X = Пауза
+                if (gamepad.buttons[1]?.pressed) input.keys['e'] = true;       // O = Норка
+                if (gamepad.buttons[2]?.pressed) input.keys['Tab'] = true;     // △ = Переключить
+                if (gamepad.buttons[3]?.pressed) input.keys['Shift'] = true;   // □ = Спринт
 
-            // Применяем dead zone
-            const absX = Math.abs(leftStickX);
-            const absY = Math.abs(leftStickY);
-
-            // ВАЖНО: Добавляем контроллер к управлению, НЕ заменяем клавиатуру!
-            // Сохраняем текущее состояние от клавиатуры
-            const keyboardUp = input.keys['ArrowUp'] || false;
-            const keyboardDown = input.keys['ArrowDown'] || false;
-            const keyboardLeft = input.keys['ArrowLeft'] || false;
-            const keyboardRight = input.keys['ArrowRight'] || false;
-
-            // Добавляем управление от контроллера ТОЛЬКО если стик движется достаточно
-            let controllerUp = false, controllerDown = false, controllerLeft = false, controllerRight = false;
-
-            if (absY > gamepadState.deadZone) {
-                if (leftStickY < -0.3) controllerUp = true;
-                if (leftStickY > 0.3) controllerDown = true;
-            }
-            if (absX > gamepadState.deadZone) {
-                if (leftStickX < -0.3) controllerLeft = true;
-                if (leftStickX > 0.3) controllerRight = true;
-            }
-
-            // ОБЪЕДИНЯЕМ управление: если нажато на клавиатуре ИЛИ на контроллере, то true
-            input.keys['ArrowUp'] = keyboardUp || controllerUp;
-            input.keys['ArrowDown'] = keyboardDown || controllerDown;
-            input.keys['ArrowLeft'] = keyboardLeft || controllerLeft;
-            input.keys['ArrowRight'] = keyboardRight || controllerRight;
-
-            // ⭐ КНОПКИ - также объединяем управление
-            // Крест (X) = button 0 -> ПАУЗА (Space)
-            const controllerSpace = gamepad.buttons[0] && gamepad.buttons[0].pressed;
-            input.keys['Space'] = input.keys['Space'] || controllerSpace;
-
-            // Кружок (O) = button 1 -> НОРКА (E)
-            const controllerE = gamepad.buttons[1] && gamepad.buttons[1].pressed;
-            input.keys['e'] = input.keys['e'] || controllerE;
-
-            // Треугольник = button 2 -> ПЕРЕКЛЮЧИТЬ МЫШЬ (Tab)
-            const controllerTab = gamepad.buttons[2] && gamepad.buttons[2].pressed;
-            input.keys['Tab'] = input.keys['Tab'] || controllerTab;
-
-            // Квадрат = button 3 -> СПРИНТ (Shift)
-            const controllerShift = gamepad.buttons[3] && gamepad.buttons[3].pressed;
-            input.keys['Shift'] = input.keys['Shift'] || controllerShift;
-
-            // ⭐ ВИБРАЦИЯ - When damage taken
-            if (gamepad.vibrationActuator && gameState.isRunning) {
-                // При нажатии кнопки - короткая вибрация
-                if (gamepad.buttons[0].pressed || gamepad.buttons[1].pressed || gamepad.buttons[2].pressed) {
-                    try {
-                        gamepad.vibrationActuator.playEffect('dual-rumble', {
-                            startDelay: 0,
-                            duration: 50,
-                            weakMagnitude: 0.3,
-                            strongMagnitude: 0.1
-                        });
-                    } catch (e) {
-                        // Вибрация может быть недоступна на некоторых браузерах
+                // ⭐ ВИБРАЦИЯ при нажатии
+                if (gamepad.vibrationActuator && gameState.isRunning) {
+                    if (gamepad.buttons[0]?.pressed || gamepad.buttons[1]?.pressed) {
+                        try {
+                            gamepad.vibrationActuator.playEffect('dual-rumble', {
+                                startDelay: 0,
+                                duration: 50,
+                                weakMagnitude: 0.3,
+                                strongMagnitude: 0.1
+                            });
+                        } catch (e) {}
                     }
                 }
+            } catch (error) {
+                console.error('⚠️ Ошибка gamepad:', error);
             }
         }
 
