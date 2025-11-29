@@ -227,6 +227,7 @@
             <div class="menu-content">
                 <div class="title">🐭 МЫШИНЫЕ ПРЯТКИ 👀</div>
                 <p>Помоги мышкам спрятаться от кошек!</p>
+                <p style="font-size: 11px; opacity: 0.6; margin-bottom: 10px;">Версия <span id="versionDisplay">2.1.1</span></p>
                 <button class="button" onclick="startGame()">▶️ НАЧАТЬ ИГРУ</button>
                 <div class="hint" id="menuTip" style="
                     background: rgba(255, 255, 255, 0.1);
@@ -330,6 +331,9 @@
     </div>
 
     <script>
+        // ==================== ВЕРСИЯ ИГРЫ ====================
+        const GAME_VERSION = '2.1.1'; // Версия с кросс-платформ поддержкой и эмодзи фиксом
+
         // ==================== CROSS-PLATFORM & MOBILE SUPPORT ====================
         const isTouchDevice = () => (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0));
         const isMobileDevice = () => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -337,6 +341,128 @@
 
         let devicePixelRatio = window.devicePixelRatio || 1;
         let lastOrientationCheck = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
+
+        // ==================== EMOJI FALLBACK SYSTEM FOR SAFARI ====================
+        // Detect which emojis don't render on Safari and use colored shapes instead
+        const emojiShapeMap = {
+            '🐭': { type: 'circle', color: '#FFB6C1', name: 'mouse' },      // Мышь - розовый круг
+            '🧀': { type: 'square', color: '#FFD93D', name: 'cheese' },    // Сыр - жёлтый квадрат
+            '😺': { type: 'circle', color: '#FF8C42', name: 'cat' },       // Кот - оранжевый круг
+            '🕳️': { type: 'circle', color: '#8B4513', name: 'burrow' },   // Норка - коричневый круг
+            '🪤': { type: 'diamond', color: '#DC143C', name: 'trap' },     // Ловушка - красный ромб
+            '✨': { type: 'star', color: '#FFD700', name: 'sparkle' },     // Искры - золотая звезда
+            '💔': { type: 'heart', color: '#FF69B4', name: 'broken_heart' },// Сломанное сердце - розовое сердце
+            '💥': { type: 'star', color: '#FF4500', name: 'explosion' }    // Взрыв - оранжевая звезда
+        };
+
+        function drawEmojiWithFallback(ctx, emoji, x, y, fontSize) {
+            ctx.save();
+            try {
+                // Сначала пытаемся нарисовать эмодзи текстом
+                ctx.font = `${fontSize}px Arial, -apple-system, sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.globalAlpha = 1;
+
+                // Проверяем, поддерживается ли эмодзи (особенно на Safari)
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = fontSize * 2;
+                tempCanvas.height = fontSize * 2;
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCtx.font = `${fontSize}px Arial, -apple-system, sans-serif`;
+                tempCtx.textAlign = 'center';
+                tempCtx.textBaseline = 'middle';
+                tempCtx.fillStyle = 'white';
+                tempCtx.fillText(emoji, fontSize, fontSize);
+
+                const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+                const hasContent = imageData.data.some(pixel => pixel > 0);
+
+                if (hasContent) {
+                    // Эмодзи рендерится нормально
+                    ctx.fillText(emoji, x, y);
+                } else {
+                    // Используем fallback с цветной фигурой
+                    drawEmojiFallback(ctx, emoji, x, y, fontSize);
+                }
+            } catch (e) {
+                // Если ошибка - используем fallback
+                drawEmojiFallback(ctx, emoji, x, y, fontSize);
+            }
+            ctx.restore();
+        }
+
+        function drawEmojiFallback(ctx, emoji, x, y, fontSize) {
+            const shape = emojiShapeMap[emoji];
+            if (!shape) {
+                // Если нет fallback, просто пытаемся нарисовать текст
+                try {
+                    ctx.font = `${fontSize}px Arial`;
+                    ctx.fillText('?', x, y);
+                } catch (e) {}
+                return;
+            }
+
+            const radius = fontSize * 0.6;
+            ctx.save();
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = shape.color;
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.lineWidth = 1;
+
+            switch (shape.type) {
+                case 'circle':
+                    ctx.beginPath();
+                    ctx.arc(x, y, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                    break;
+                case 'square':
+                    ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+                    ctx.strokeRect(x - radius, y - radius, radius * 2, radius * 2);
+                    break;
+                case 'diamond':
+                    ctx.beginPath();
+                    ctx.moveTo(x, y - radius);
+                    ctx.lineTo(x + radius, y);
+                    ctx.lineTo(x, y + radius);
+                    ctx.lineTo(x - radius, y);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                    break;
+                case 'heart':
+                    ctx.beginPath();
+                    ctx.moveTo(x, y + radius * 0.4);
+                    ctx.bezierCurveTo(x - radius * 0.6, y - radius * 0.3, x - radius, y, x - radius * 0.3, y + radius * 0.3);
+                    ctx.bezierCurveTo(x, y + radius, x + radius * 0.3, y + radius * 0.3, x + radius, y);
+                    ctx.bezierCurveTo(x + radius * 0.6, y - radius * 0.3, x, y + radius * 0.4, x, y + radius * 0.4);
+                    ctx.fill();
+                    ctx.stroke();
+                    break;
+                case 'star':
+                    drawStar(ctx, x, y, 5, radius, radius * 0.4);
+                    ctx.fill();
+                    ctx.stroke();
+                    break;
+            }
+            ctx.restore();
+        }
+
+        function drawStar(ctx, cx, cy, spikes, outerRadius, innerRadius) {
+            let rot = Math.PI / 2 * 3;
+            let step = Math.PI / spikes;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy - outerRadius);
+            for (let i = 0; i < spikes; i++) {
+                ctx.lineTo(cx + Math.cos(rot) * outerRadius, cy + Math.sin(rot) * outerRadius);
+                rot += step;
+                ctx.lineTo(cx + Math.cos(rot) * innerRadius, cy + Math.sin(rot) * innerRadius);
+                rot += step;
+            }
+            ctx.lineTo(cx, cy - outerRadius);
+            ctx.closePath();
+        }
 
         function getOptimalCanvasSize() {
             const width = window.innerWidth * 0.98;
@@ -507,17 +633,8 @@
             draw(ctx) {
                 for (let i = 0; i < this.active.length; i++) {
                     const p = this.active[i];
-                    ctx.save();
                     ctx.globalAlpha = p.life;
-                    ctx.font = `${20 * p.life}px Arial, -apple-system, sans-serif`;
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    try {
-                        ctx.fillText(p.emoji, p.x, p.y);
-                    } catch (e) {
-                        // Fallback for emoji rendering issues
-                    }
-                    ctx.restore();
+                    drawEmojiWithFallback(ctx, p.emoji, p.x, p.y, 20 * p.life);
                 }
             }
         }
@@ -758,15 +875,8 @@
                     alpha *= flicker;
                 }
 
-                ctx.font = `${fontSize}px Arial, -apple-system, sans-serif`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
                 ctx.globalAlpha = alpha;
-                try {
-                    ctx.fillText(this.emoji, this.x, this.y);
-                } catch (e) {
-                    // Fallback for Safari emoji rendering
-                }
+                drawEmojiWithFallback(ctx, this.emoji, this.x, this.y, fontSize);
 
                 // Если в норке, показываем эффект "укрытия"
                 if (this.inBurrow) {
@@ -944,17 +1054,8 @@
                 ctx.restore();
 
                 // Кошка ВСЕГДА полностью видна
-                ctx.save();
-                ctx.font = `${this.radius * 2}px Arial, -apple-system, sans-serif`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
                 ctx.globalAlpha = 1; // КРИТИЧНО: гарантируем 100% видимость
-                ctx.fillStyle = '#000'; // Стандартный чёрный
-                try {
-                    ctx.fillText(this.emoji, this.x, this.y);
-                } catch (e) {
-                    // Fallback for Safari emoji rendering
-                }
+                drawEmojiWithFallback(ctx, this.emoji, this.x, this.y, this.radius * 2);
                 ctx.restore();
             }
         }
@@ -969,17 +1070,8 @@
             }
 
             draw(ctx) {
-                ctx.save();
-                ctx.font = `${this.radius * 2}px Arial, -apple-system, sans-serif`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
                 ctx.globalAlpha = 1;
-                try {
-                    ctx.fillText(this.emoji, this.x, this.y);
-                } catch (e) {
-                    // Fallback
-                }
-                ctx.restore();
+                drawEmojiWithFallback(ctx, this.emoji, this.x, this.y, this.radius * 2);
             }
         }
 
@@ -997,18 +1089,9 @@
             }
 
             draw(ctx) {
-                ctx.save();
-                ctx.font = `${this.radius * 2}px Arial, -apple-system, sans-serif`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
                 const bobOffset = Math.sin(this.bobbing) * 3;
                 ctx.globalAlpha = 1;
-                try {
-                    ctx.fillText(this.emoji, this.x, this.y + bobOffset);
-                } catch (e) {
-                    // Fallback
-                }
-                ctx.restore();
+                drawEmojiWithFallback(ctx, this.emoji, this.x, this.y + bobOffset, this.radius * 2);
             }
         }
 
@@ -1021,17 +1104,8 @@
             }
 
             draw(ctx) {
-                ctx.save();
-                ctx.font = `${this.radius * 2}px Arial, -apple-system, sans-serif`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
                 ctx.globalAlpha = 1;
-                try {
-                    ctx.fillText(this.emoji, this.x, this.y);
-                } catch (e) {
-                    // Fallback
-                }
-                ctx.restore();
+                drawEmojiWithFallback(ctx, this.emoji, this.x, this.y, this.radius * 2);
             }
         }
 
@@ -1044,17 +1118,8 @@
             }
 
             draw(ctx) {
-                ctx.save();
-                ctx.font = `${this.radius * 2}px Arial, -apple-system, sans-serif`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
                 ctx.globalAlpha = 1;
-                try {
-                    ctx.fillText(this.emoji, this.x, this.y);
-                } catch (e) {
-                    // Fallback
-                }
-                ctx.restore();
+                drawEmojiWithFallback(ctx, this.emoji, this.x, this.y, this.radius * 2);
             }
         }
 
@@ -1999,10 +2064,18 @@
         }
 
         window.addEventListener('load', () => {
+            // Update version display
+            const versionDisplay = document.getElementById('versionDisplay');
+            if (versionDisplay) {
+                versionDisplay.textContent = GAME_VERSION;
+            }
+
             console.log('🐭 Игра загружена и оптимизирована!');
+            console.log(`📌 Версия: ${GAME_VERSION}`);
             console.log('✅ Защита от зависания активирована');
             console.log('✅ Синхронное отображение результатов включено');
             console.log('✅ Cross-platform поддержка активирована');
+            console.log('✅ Emoji fallback система для Safari включена');
 
             // Detect and setup for mobile/touch devices
             const isTouch = isTouchDevice();
