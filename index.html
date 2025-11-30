@@ -3367,18 +3367,43 @@
             // ⭐ v3.6.0: Очищаем input при переходе на следующий уровень
             clearAllInput();
 
+            // ⭐ v3.7.1: Явное скрытие экрана завершения уровня перед началом новой игры
             DOM.levelCompleteScreen.classList.remove('active');
+            // Убедимся что экран полностью скрыт в display стиле
+            if (DOM.levelCompleteScreen) {
+                DOM.levelCompleteScreen.style.display = 'none';
+            }
+
             gameState.currentLevel++;
             gameState.isRunning = true;
             gameState.isPaused = false;
             playSound('button');
-            initGame();
-            gameLoop();
+
+            // Убедимся что canvas видимый
+            if (DOM.gameCanvas) {
+                DOM.gameCanvas.style.display = 'block';
+            }
+
+            try {
+                initGame();
+                gameLoop();
+            } catch (e) {
+                console.error('❌ Ошибка при nextLevel:', e);
+                gameState.isRunning = false;
+                showScreen('gameOver');
+            }
         }
 
         function resumeGame() {
             gameState.isPaused = false;
             DOM.pauseScreen.classList.remove('active');
+            // ⭐ v3.7.1: Ensure canvas is visible when resuming
+            if (DOM.pauseScreen) {
+                DOM.pauseScreen.style.display = 'none';
+            }
+            if (DOM.gameCanvas) {
+                DOM.gameCanvas.style.display = 'block';
+            }
             playSound('pause');
         }
 
