@@ -1,5 +1,5 @@
 {
-  "buildCommand": "true",
+  "buildCommand": "",
   "outputDirectory": ".",
   "functions": {
     "api/save-score.js": {
