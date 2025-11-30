@@ -1635,65 +1635,36 @@
         }
 
         // ==================== РЕЙТИНГ И ЛИДЕРБОРД ====================
-        // ⭐ v3.6.0: Глобальные переменные для рейтинга
-        let globalLeaderboard = [];
-        let leaderboardLoaded = false;
-
         /**
-         * Загружает рейтинг с GitHub (с кэшем в localStorage)
+         * ⭐ v3.6.0: ТОЛЬКО GitHub - один рейтинг для всех браузеров и устройств!
+         * Загружает рейтинг с GitHub при каждом вызове (гарантирует актуальность)
          */
         async function getLeaderboard() {
-            // Если уже в памяти - вернуть
-            if (leaderboardLoaded && globalLeaderboard.length > 0) {
-                return globalLeaderboard;
-            }
-
             try {
-                // 1. Пробуем загрузить с GitHub
+                console.log('📊 Загружаем рейтинг с GitHub...');
                 const response = await fetch(
-                    'https://raw.githubusercontent.com/sergei-tigrov/mousygame/main/leaderboard.json'
+                    'https://raw.githubusercontent.com/sergei-tigrov/mousygame/main/leaderboard.json',
+                    {
+                        headers: {
+                            'Cache-Control': 'no-cache',  // Не кэшировать браузером
+                            'Pragma': 'no-cache'
+                        }
+                    }
                 );
-                if (response.ok) {
-                    const data = await response.json();
-                    globalLeaderboard = data.scores || [];
-                    leaderboardLoaded = true;
-                    // Кэшируем в localStorage для быстрого доступа
-                    localStorage.setItem('mouseGameLeaderboard', JSON.stringify(globalLeaderboard));
-                    console.log(`📊 Загружен рейтинг из GitHub (${globalLeaderboard.length} записей)`);
-                    return globalLeaderboard;
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
                 }
+                
+                const data = await response.json();
+                const leaderboard = data.scores || [];
+                console.log(`✅ Рейтинг загружен с GitHub (${leaderboard.length} записей)`);
+                return leaderboard;
+                
             } catch (error) {
-                console.warn('⚠️ Не удалось загрузить с GitHub, используем localStorage:', error.message);
-            }
-
-            // 2. Fallback на localStorage
-            try {
-                const cached = localStorage.getItem('mouseGameLeaderboard');
-                if (cached) {
-                    globalLeaderboard = JSON.parse(cached);
-                    leaderboardLoaded = true;
-                    console.log(`📊 Используется кэшированный рейтинг (${globalLeaderboard.length} записей)`);
-                    return globalLeaderboard;
-                }
-            } catch (error) {
-                console.error('❌ Ошибка парсинга localStorage:', error);
-            }
-
-            // 3. Пустой рейтинг по умолчанию
-            console.log('📊 Рейтинг пуст');
-            return [];
-        }
-
-        /**
-         * Сохраняет рейтинг в localStorage (локальный кэш)
-         */
-        function saveLeaderboardToCache(leaderboard) {
-            try {
-                localStorage.setItem('mouseGameLeaderboard', JSON.stringify(leaderboard));
-                globalLeaderboard = leaderboard;
-                leaderboardLoaded = true;
-            } catch (error) {
-                console.warn('⚠️ Не удалось сохранить в localStorage:', error);
+                console.error(`❌ Ошибка загрузки рейтинга с GitHub:`, error.message);
+                // Показываем ошибку но не падаем
+                throw error;
             }
         }
 
@@ -1727,18 +1698,6 @@
                 const result = await response.json();
                 console.log(`✅ Скор сохранен! Позиция: #${result.topScores?.findIndex(s => s.name === playerName) + 1 || '?'}`);
 
-                // Обновляем локальный рейтинг
-                const leaderboard = await getLeaderboard();
-                const newScore = {
-                    name: playerName.trim(),
-                    score: score,
-                    level: level,
-                    date: new Date().toISOString().split('T')[0]
-                };
-                leaderboard.push(newScore);
-                leaderboard.sort((a, b) => b.score - a.score);
-                saveLeaderboardToCache(leaderboard.slice(0, 100));
-
                 // Показываем сообщение об успехе
                 showScoreSaveNotification(playerName, score, result.topScores?.findIndex(s => s.name === playerName) + 1);
 
@@ -1762,7 +1721,7 @@
          * Показывает уведомление об ошибке (но игра продолжает работать)
          */
         function showScoreSaveError(errorMessage) {
-            console.warn(`⚠️ Рейтинг недоступен, сохранено локально. Ошибка: ${errorMessage}`);
+            console.warn(`⚠️ Ошибка отправки скора на рейтинг. Скор НЕ сохранен: ${errorMessage}`);
             // Не блокируем игру, просто логируем
         }
 
