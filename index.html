@@ -2320,35 +2320,44 @@
             gameState.selectedMouse = 0;
             gameState.globalNoise = 0;
 
-            // Препятствия
+            // Препятствия - с лимитом попыток для защиты от зависания
             for (let i = 0; i < levelConfig.obstacles; i++) {
                 let x, y;
+                let attempts = 0;
+                const maxAttempts = 50;
                 do {
                     x = 100 + Math.random() * (levelConfig.roomWidth - 200);
                     y = 100 + Math.random() * (levelConfig.roomHeight - 200);
-                } while (!isSpawnSafe(x, y, gameState.obstacles, 120));
+                    attempts++;
+                } while (attempts < maxAttempts && !isSpawnSafe(x, y, gameState.obstacles, 120));
                 const obs = new Obstacle(x, y, i);
                 gameState.obstacles.push(obs);
                 gameState.grid.insert('obstacles', x, y, obs);
             }
 
-            // Норки
+            // Норки - с лимитом попыток для защиты от зависания
             for (let i = 0; i < levelConfig.burrows; i++) {
                 let x, y;
+                let attempts = 0;
+                const maxAttempts = 50;
                 do {
                     x = 100 + Math.random() * (levelConfig.roomWidth - 200);
                     y = 100 + Math.random() * (levelConfig.roomHeight - 200);
-                } while (!isSpawnSafe(x, y, gameState.obstacles, 120) || !isSpawnSafe(x, y, gameState.burrows, 120));
+                    attempts++;
+                } while (attempts < maxAttempts && (!isSpawnSafe(x, y, gameState.obstacles, 120) || !isSpawnSafe(x, y, gameState.burrows, 120)));
                 gameState.burrows.push(new Burrow(x, y));
             }
 
-            // Мышеловки
+            // Мышеловки - с лимитом попыток для защиты от зависания
             for (let i = 0; i < levelConfig.traps; i++) {
                 let x, y;
+                let attempts = 0;
+                const maxAttempts = 50;
                 do {
                     x = 100 + Math.random() * (levelConfig.roomWidth - 200);
                     y = 100 + Math.random() * (levelConfig.roomHeight - 200);
-                } while (!isSpawnSafe(x, y, gameState.obstacles, 100) || !isSpawnSafe(x, y, gameState.burrows, 120) || !isSpawnSafe(x, y, gameState.traps, 100));
+                    attempts++;
+                } while (attempts < maxAttempts && (!isSpawnSafe(x, y, gameState.obstacles, 100) || !isSpawnSafe(x, y, gameState.burrows, 120) || !isSpawnSafe(x, y, gameState.traps, 100)));
                 gameState.traps.push(new Trap(x, y));
             }
 
