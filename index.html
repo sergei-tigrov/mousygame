@@ -1641,12 +1641,12 @@
          */
         async function getLeaderboard() {
             try {
-                console.log('📊 Загружаем рейтинг с GitHub...');
+                console.log('📊 Загружаем рейтинг с Vercel...');
                 const response = await fetch(
-                    'https://raw.githubusercontent.com/sergei-tigrov/mousygame/main/leaderboard.json',
+                    '/leaderboard.json?t=' + Date.now(),  // Избегаем кэша браузера
                     {
                         headers: {
-                            'Cache-Control': 'no-cache',  // Не кэшировать браузером
+                            'Cache-Control': 'no-cache',
                             'Pragma': 'no-cache'
                         }
                     }
@@ -1658,7 +1658,7 @@
                 
                 const data = await response.json();
                 const leaderboard = data.scores || [];
-                console.log(`✅ Рейтинг загружен с GitHub (${leaderboard.length} записей)`);
+                console.log(`✅ Рейтинг загружен с Vercel (${leaderboard.length} записей)`);
                 return leaderboard;
                 
             } catch (error) {
@@ -1772,7 +1772,7 @@
 
                 // Добавляем информацию об обновлении
                 html += '<div style="text-align: center; margin-top: 15px; opacity: 0.5; font-size: 10px;">';
-                html += `📡 Data: GitHub RAW → Vercel Function (server-side) → leaderboard.json<br>`;
+                html += `📡 Data: GitHub (source) → Vercel Function (updates) → Vercel (served)<br>`;
                 html += `Всего записей: ${leaderboard.length} • Реал-тайм синхронизация<br>`;
                 html += `v${GAME_VERSION}`;
                 html += '</div></div>';
