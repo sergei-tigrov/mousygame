@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="ru">
-<!-- 🎮 v3.6.0: UTILITY FUNCTIONS REFACTOR - Consolidated boundary checking, collision detection, screen management - Updated 2025-11-30 -->
+<!-- 🎮 v3.6.1: GitHub-only Leaderboard - Removed localStorage fallback for single source of truth - Updated 2025-11-30 -->
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
@@ -666,7 +666,7 @@
 
     <script>
         // ==================== ВЕРСИЯ ИГРЫ ====================
-        const GAME_VERSION = '3.6.0'; // ⭐ UTILITY FUNCTIONS REFACTOR - Added boundary checking, distance/collision utilities, and screen management; reduced 50+ duplicate patterns
+        const GAME_VERSION = '3.6.1'; // ⭐ GitHub-only Leaderboard - Removed localStorage fallback, single source of truth
 
         // ==================== CROSS-PLATFORM & MOBILE SUPPORT ====================
         const isTouchDevice = () => (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0));
@@ -1771,8 +1771,10 @@
                 });
 
                 // Добавляем информацию об обновлении
-                html += '<div style="text-align: center; margin-top: 15px; opacity: 0.5; font-size: 11px;">';
-                html += `Загружено из GitHub • ${leaderboard.length} всего записей`;
+                html += '<div style="text-align: center; margin-top: 15px; opacity: 0.5; font-size: 10px;">';
+                html += `📡 Data: GitHub RAW → Vercel Function (server-side) → leaderboard.json<br>`;
+                html += `Всего записей: ${leaderboard.length} • Реал-тайм синхронизация<br>`;
+                html += `v${GAME_VERSION}`;
                 html += '</div></div>';
                 
                 content.innerHTML = html;
