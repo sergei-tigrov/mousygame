@@ -550,6 +550,7 @@
                 <p>Помоги мышкам спрятаться от кошек!</p>
                 <p style="font-size: 11px; opacity: 0.6; margin-bottom: 10px;">Версия <span id="versionDisplay">3.6.0</span></p>
                 <button class="button" onclick="startGame()">▶️ НАЧАТЬ ИГРУ</button>
+                <button class="button" onclick="showLeaderboardFromMenu()" style="margin-top: 10px;">🏆 РЕЙТИНГ</button>
                 <div class="hint" id="menuTip" style="
                     background: rgba(255, 255, 255, 0.1);
                     padding: 15px;
@@ -1788,16 +1789,31 @@
 
         async function showLeaderboard() {
             playSound('button');
+            leaderboardSource = 'gameOver';  // Track source
             DOM.gameOverScreen.style.display = 'none';
             DOM.leaderboardScreen.style.display = 'flex';
             // ⭐ v3.6.0: Загружаем рейтинг из GitHub асинхронно
             await displayLeaderboard();
         }
 
+        async function showLeaderboardFromMenu() {
+            playSound('button');
+            leaderboardSource = 'menu';  // Track source
+            DOM.menuScreen.style.display = 'none';
+            DOM.leaderboardScreen.style.display = 'flex';
+            // ⭐ v3.7.0: Загружаем рейтинг из GitHub асинхронно (из меню)
+            await displayLeaderboard();
+        }
+
         function hideLeaderboard() {
             playSound('button');
             DOM.leaderboardScreen.style.display = 'none';
-            DOM.gameOverScreen.style.display = 'flex';
+            // ⭐ v3.7.0: Return to the correct screen based on where we came from
+            if (leaderboardSource === 'menu') {
+                DOM.menuScreen.style.display = 'flex';
+            } else {
+                DOM.gameOverScreen.style.display = 'flex';
+            }
         }
 
         async function saveScore() {
@@ -1818,6 +1834,9 @@
 
         // УДАЛЕНО: displayGameStats() - больше не нужна, HTML строится прямо в game loop
         // Функция была источником потенциального зависания через setTimeout
+
+        // ⭐ v3.7.0: Track where leaderboard was opened from (menu or gameOver)
+        let leaderboardSource = null;
 
         // ==================== СОСТОЯНИЕ ====================
         let gameState = {
