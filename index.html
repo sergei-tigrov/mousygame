@@ -667,7 +667,7 @@
 
     <script>
         // ==================== ВЕРСИЯ ИГРЫ ====================
-        const GAME_VERSION = '3.7.3'; // ⭐ v3.7.3: Spawn limits + Screen visibility fixes + Leaderboard button
+        const GAME_VERSION = '3.7.4'; // ⭐ v3.7.4: CRITICAL FIX - input.keys reference stability for WASD on initial startup
 
         // ==================== CROSS-PLATFORM & MOBILE SUPPORT ====================
         const isTouchDevice = () => (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0));
@@ -1919,15 +1919,18 @@
                 if (inputMobile.keys[key]) merged[key] = true;
             }
 
-            // ⭐ v3.7.3: Debug check for WASD
-            const wasdKeys = ['w', 'a', 's', 'd'];
-            const activeWASD = wasdKeys.filter(k => merged[k]);
-            if (activeWASD.length > 0) {
-                console.log(`🎮 getMergedInput: WASD active = ${JSON.stringify(activeWASD)}, all merged = ${JSON.stringify(merged)}`);
+            // ⭐ v3.7.4: КРИТИЧЕСКИЙ FIX - обновляем input.keys БЕЗ замены ссылки (важно для стабильности)
+            // Очищаем старые ключи
+            for (let key in input.keys) {
+                if (!(key in merged)) {
+                    input.keys[key] = false;
+                }
+            }
+            // Добавляем новые ключи
+            for (let key in merged) {
+                input.keys[key] = merged[key];
             }
 
-            // ⭐ v3.6.0: Обновляем старый input.keys для совместимости с остальным кодом
-            input.keys = merged;
             return input;  // Возвращаем в прежнем формате
         }
 
@@ -3253,11 +3256,6 @@
 
             // ✅ ГЛАВНОЕ: ВСЕГДА пишем в inputDesktop
             inputDesktop.keys[keyName] = true;
-
-            // ⭐ v3.7.3: Debug logging for WASD input
-            if (['w', 'a', 's', 'd'].includes(keyName)) {
-                console.log(`⌨️ KEYDOWN: ${keyName} (raw: ${e.key}) - inputDesktop.keys['${keyName}'] = ${inputDesktop.keys[keyName]}`);
-            }
 
             // ⭐ ОТДЕЛЬНАЯ ЛОГИКА ДЛЯ МЕНЮ (не блокирует ввод)
             const menuScreen = DOM.menuScreen;
