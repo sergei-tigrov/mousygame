@@ -1962,6 +1962,12 @@
             for (let key in inputMobile.keys) {
                 inputMobile.keys[key] = false;
             }
+
+            // ⭐ v3.7.4: КРИТИЧЕСКИЙ FIX - очищаем и глобальный input.keys!
+            // Иначе старые ключи остаются и конфликтуют с новыми
+            for (let key in input.keys) {
+                input.keys[key] = false;
+            }
         }
 
         let fpsFrames = 0, lastFpsTime = 0;
