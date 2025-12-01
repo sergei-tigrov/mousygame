@@ -1931,6 +1931,11 @@
                 input.keys[key] = merged[key];
             }
 
+            // ⭐ v3.7.4: Debug WASD input
+            if (input.keys['w'] || input.keys['a'] || input.keys['s'] || input.keys['d']) {
+                console.log(`🎮 getMergedInput: WASD = ${JSON.stringify({w:input.keys['w'],a:input.keys['a'],s:input.keys['s'],d:input.keys['d']})}`);
+            }
+
             return input;  // Возвращаем в прежнем формате
         }
 
@@ -3257,6 +3262,11 @@
             // ✅ ГЛАВНОЕ: ВСЕГДА пишем в inputDesktop
             inputDesktop.keys[keyName] = true;
 
+            // ⭐ v3.7.4: Логирование для отладки WASD проблемы
+            if (['w', 'a', 's', 'd'].includes(keyName)) {
+                console.log(`⌨️ KEYDOWN ${keyName}: inputDesktop.keys =`, inputDesktop.keys, 'isRunning =', gameState.isRunning);
+            }
+
             // ⭐ ОТДЕЛЬНАЯ ЛОГИКА ДЛЯ МЕНЮ (не блокирует ввод)
             const menuScreen = DOM.menuScreen;
             const pauseScreen = DOM.pauseScreen;
@@ -3321,6 +3331,10 @@
                 // ⭐ v3.6.0: КРИТИЧЕСКИ! Очищаем input перед началом игры
                 clearAllInput();
                 console.log('✅ Input очищен');
+                console.log('🔍 После clearAllInput:', {
+                    inputDesktop: Object.keys(inputDesktop.keys),
+                    inputGlobal: Object.keys(input.keys)
+                });
 
                 // Скрываем меню и запускаем игру
                 hideAllScreens();
