@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="ru">
-<!-- 🎮 v4.1.0: Themed levels, animations, butterflies, rolling balls, minimap, kudos, stealth lighting -->
+<!-- 🎮 v4.1.1: Fix emoji silhouette bug (fillStyle inheritance) + move minimap off playfield -->
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
@@ -531,6 +531,19 @@
                 <button class="action-btn" id="btn-e" data-key="e" title="НОРКА">🏠</button>
             </div>
         </div>
+        <!-- ⭐ v4.1.1: Мини-карта вынесена за игровое поле в правый верхний угол окна -->
+        <canvas id="minimapCanvas" width="160" height="120" style="
+            position: absolute;
+            top: 60px;
+            right: 14px;
+            z-index: 40;
+            background: rgba(0, 0, 0, 0.55);
+            border: 1px solid rgba(255, 217, 61, 0.4);
+            border-radius: 8px;
+            pointer-events: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+            display: none;
+        "></canvas>
         <div class="ui-overlay">
             <div class="ui-top">
                 <div class="stat">🐭 <span id="miceCount">0</span> ❤️ <span id="miceHP">0</span></div>
@@ -671,7 +684,7 @@
 
     <script>
         // ==================== ВЕРСИЯ ИГРЫ ====================
-        const GAME_VERSION = '4.1.0';
+        const GAME_VERSION = '4.1.1';
         const DEBUG = false; // Включи для подробных логов в консоль
         const dlog = (...args) => { if (DEBUG) console.log(...args); };
 
@@ -712,6 +725,7 @@
             DOM.stamina = document.getElementById('stamina');
             DOM.fps = document.getElementById('fps');
             DOM.scoreDisplay = document.getElementById('scoreDisplay');
+            DOM.minimapCanvas = document.getElementById('minimapCanvas');
             DOM.controls = document.getElementById('controls');
             DOM.controllerIndicator = document.getElementById('controllerIndicator');
             DOM.versionDisplay = document.getElementById('versionDisplay');
@@ -736,19 +750,25 @@
 
         // ==================== РЕНДЕРИНГ ЭМОДЗИ ====================
         // ⭐ v4.0: Один font stack, без try/catch — ctx.font не бросает, а фолбэк делает браузер
+        // ⭐ v4.1.1: ВАЖНО — fillStyle должен быть опэйковым чёрным. Если унаследовать
+        // полупрозрачный чёрный (из drawShadow, например), Chromium рендерит цветные emoji
+        // как одноцветный силуэт вместо COLR/CPAL-глифов.
         const EMOJI_FONT_STACK = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla","EmojiOne Color",Arial,sans-serif';
         function drawEmoji(ctx, emoji, x, y, fontSize, alpha = 1) {
             ctx.font = `${fontSize}px ${EMOJI_FONT_STACK}`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
+            const prevFill = ctx.fillStyle;
+            ctx.fillStyle = '#000';
             if (alpha !== 1) {
-                const prev = ctx.globalAlpha;
-                ctx.globalAlpha = prev * alpha;
+                const prevAlpha = ctx.globalAlpha;
+                ctx.globalAlpha = prevAlpha * alpha;
                 ctx.fillText(emoji, x, y);
-                ctx.globalAlpha = prev;
+                ctx.globalAlpha = prevAlpha;
             } else {
                 ctx.fillText(emoji, x, y);
             }
+            ctx.fillStyle = prevFill;
         }
 
         // ⭐ v4.0: Мягкая тень под сущностью
@@ -2646,41 +2666,53 @@
             ctx.restore();
         }
 
-        // ⭐ v4.1: MINI-MAP — маленькая схема уровня в углу
-        function drawMinimap(ctx, canvas) {
-            const size = 140;
-            const margin = 16;
-            const mapX = margin;
-            const mapY = margin + 50;  // ниже HUD (combo)
-            const scaleX = size / canvas.width;
-            const scaleY = size / canvas.height;
+        // ⭐ v4.1.1: MINI-MAP на отдельном canvas (вынесена за игровое поле)
+        let _minimapCtx = null;
+        function drawMinimap() {
+            const mini = DOM.minimapCanvas;
+            if (!mini || !gameState.canvas) return;
+            if (!_minimapCtx) _minimapCtx = mini.getContext('2d');
+            const ctx = _minimapCtx;
 
-            ctx.save();
-            // Фон
-            ctx.fillStyle = 'rgba(0,0,0,0.55)';
-            ctx.fillRect(mapX, mapY, size, size * (canvas.height / canvas.width));
-            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(mapX, mapY, size, size * (canvas.height / canvas.width));
+            // Показываем мини-карту только во время игры
+            if (!gameState.isRunning || gameState.mice.length === 0) {
+                mini.style.display = 'none';
+                return;
+            }
+            mini.style.display = 'block';
 
-            // Препятствия — едва заметные
-            ctx.fillStyle = 'rgba(150,150,170,0.4)';
+            // Подгоняем aspect ratio к игровому полю
+            const aspect = gameState.canvas.height / gameState.canvas.width;
+            const targetW = 160;
+            const targetH = Math.round(targetW * aspect);
+            if (mini.width !== targetW || mini.height !== targetH) {
+                mini.width = targetW;
+                mini.height = targetH;
+            }
+
+            const scaleX = mini.width / gameState.canvas.width;
+            const scaleY = mini.height / gameState.canvas.height;
+
+            ctx.clearRect(0, 0, mini.width, mini.height);
+
+            // Препятствия
+            ctx.fillStyle = 'rgba(150,150,170,0.45)';
             for (let i = 0; i < gameState.obstacles.length; i++) {
                 const o = gameState.obstacles[i];
-                ctx.fillRect(mapX + o.x * scaleX - 1, mapY + o.y * scaleY - 1, 2, 2);
+                ctx.fillRect(o.x * scaleX - 1, o.y * scaleY - 1, 2, 2);
             }
             // Сыр
             ctx.fillStyle = '#FFD93D';
             for (let i = 0; i < gameState.cheese.length; i++) {
                 const c = gameState.cheese[i];
-                ctx.fillRect(mapX + c.x * scaleX - 1.5, mapY + c.y * scaleY - 1.5, 3, 3);
+                ctx.fillRect(c.x * scaleX - 1.5, c.y * scaleY - 1.5, 3, 3);
             }
             // Норки
             ctx.fillStyle = '#6BCB77';
             for (let i = 0; i < gameState.burrows.length; i++) {
                 const b = gameState.burrows[i];
                 ctx.beginPath();
-                ctx.arc(mapX + b.x * scaleX, mapY + b.y * scaleY, 3, 0, Math.PI * 2);
+                ctx.arc(b.x * scaleX, b.y * scaleY, 3, 0, Math.PI * 2);
                 ctx.fill();
             }
             // Ловушки
@@ -2689,7 +2721,7 @@
                 for (let i = 0; i < gameState.traps.length; i++) {
                     const t = gameState.traps[i];
                     if (t.triggered) continue;
-                    ctx.fillRect(mapX + t.x * scaleX - 1.5, mapY + t.y * scaleY - 1.5, 3, 3);
+                    ctx.fillRect(t.x * scaleX - 1.5, t.y * scaleY - 1.5, 3, 3);
                 }
             }
             // Коты
@@ -2697,14 +2729,14 @@
                 const c = gameState.cats[i];
                 ctx.fillStyle = c.target ? '#FF3D3D' : '#FF9E9E';
                 ctx.beginPath();
-                ctx.arc(mapX + c.x * scaleX, mapY + c.y * scaleY, 3.5, 0, Math.PI * 2);
+                ctx.arc(c.x * scaleX, c.y * scaleY, 3.5, 0, Math.PI * 2);
                 ctx.fill();
                 // Направление взгляда
-                ctx.strokeStyle = c.target ? 'rgba(255,60,60,0.8)' : 'rgba(255,200,100,0.5)';
+                ctx.strokeStyle = c.target ? 'rgba(255,60,60,0.9)' : 'rgba(255,200,100,0.6)';
                 ctx.lineWidth = 1.3;
                 ctx.beginPath();
-                ctx.moveTo(mapX + c.x * scaleX, mapY + c.y * scaleY);
-                ctx.lineTo(mapX + c.x * scaleX + Math.cos(c.direction) * 10, mapY + c.y * scaleY + Math.sin(c.direction) * 10);
+                ctx.moveTo(c.x * scaleX, c.y * scaleY);
+                ctx.lineTo(c.x * scaleX + Math.cos(c.direction) * 10, c.y * scaleY + Math.sin(c.direction) * 10);
                 ctx.stroke();
             }
             // Мыши
@@ -2714,7 +2746,7 @@
                 const isSel = i === gameState.selectedMouse;
                 ctx.fillStyle = isSel ? '#FFFFFF' : '#BEF3FF';
                 ctx.beginPath();
-                ctx.arc(mapX + m.x * scaleX, mapY + m.y * scaleY, isSel ? 4 : 3, 0, Math.PI * 2);
+                ctx.arc(m.x * scaleX, m.y * scaleY, isSel ? 4 : 3, 0, Math.PI * 2);
                 ctx.fill();
                 if (isSel) {
                     ctx.strokeStyle = '#FFD93D';
@@ -2722,14 +2754,6 @@
                     ctx.stroke();
                 }
             }
-
-            // Ярлычок
-            ctx.font = '10px Arial';
-            ctx.fillStyle = 'rgba(255,255,255,0.5)';
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'top';
-            ctx.fillText('🗺 КАРТА', mapX + 4, mapY + 4);
-            ctx.restore();
         }
 
         // ⭐ v4.1: CLOSE-CALL detection
@@ -3777,7 +3801,7 @@
 
                 // HUD поверх shake (не трясётся)
                 drawHUD(ctx, canvas);
-                drawMinimap(ctx, canvas);
+                drawMinimap();
                 drawKudos(ctx, canvas);
                 drawLevelIntro(ctx, canvas);
 
