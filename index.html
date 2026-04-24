@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="ru">
-<!-- 🎮 v3.7.3: Spawn limits + Screen visibility fixes + Leaderboard button - DEPLOYED 2025-11-30 -->
+<!-- 🎮 v4.1.0: Themed levels, animations, butterflies, rolling balls, minimap, kudos, stealth lighting -->
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
@@ -30,18 +30,21 @@
             -webkit-text-size-adjust: 100%;
         }
         #gameCanvas {
-            border: 2px solid #FFD93D;
-            background: linear-gradient(135deg, #FFE66D 0%, #F4F4F4 50%, #A8E6CF 100%);
-            box-shadow: 0 0 40px rgba(255, 107, 107, 0.6), inset 0 0 20px rgba(255, 255, 255, 0.3);
+            border: 3px solid rgba(255, 217, 61, 0.85);
+            background: #2b1d3a;
+            box-shadow:
+                0 0 60px rgba(255, 107, 107, 0.45),
+                0 0 120px rgba(107, 203, 119, 0.25),
+                inset 0 0 20px rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
             cursor: crosshair;
             display: block;
-            image-rendering: crisp-edges;
-            image-rendering: -webkit-optimize-contrast;
             -ms-touch-action: none;
             touch-action: none;
             max-width: 100%;
             max-height: 100%;
             object-fit: contain;
+            will-change: transform;
         }
         /* Safari/iOS fixes */
         #gameCanvas {
@@ -530,15 +533,16 @@
         </div>
         <div class="ui-overlay">
             <div class="ui-top">
-                <div class="stat">🐭 <span id="miceCount">0</span> HP: <span id="miceHP">0</span></div>
+                <div class="stat">🐭 <span id="miceCount">0</span> ❤️ <span id="miceHP">0</span></div>
                 <div class="stat">🧀 <span id="cheeseCount">0</span>/<span id="totalCheese">0</span></div>
-                <div class="stat">⭐ <span id="levelNumber">1</span></div>
+                <div class="stat">💰 <span id="scoreDisplay">0</span></div>
+                <div class="stat">⭐ Lv <span id="levelNumber">1</span></div>
                 <div class="stat">⚡ <span id="stamina">100</span>%</div>
                 <div class="stat">FPS: <span id="fps">60</span></div>
             </div>
             <div style="flex: 1;"></div>
             <div class="ui-bottom" id="controls" style="display: flex; justify-content: space-between; align-items: center;">
-                <span>WASD/↑↓←→ движение | SHIFT спринт | ПРОБЕЛ пауза | TAB мышь | E норка</span>
+                <span>WASD/↑↓←→ движение · SHIFT спринт · ПРОБЕЛ пауза · TAB мышь · E норка · 🌟золотой сыр · 👻⚡🛡️❤️ бустеры</span>
                 <!-- ⭐ v3.6.0: Audio toggle button in bottom right -->
                 <button id="audioToggleBtn" class="audio-toggle-btn" onclick="toggleAudio()" title="Включить/выключить звук">🔊</button>
             </div>
@@ -548,7 +552,7 @@
             <div class="menu-content">
                 <div class="title">🐭 МЫШИНЫЕ ПРЯТКИ 👀</div>
                 <p>Помоги мышкам спрятаться от кошек!</p>
-                <p style="font-size: 11px; opacity: 0.6; margin-bottom: 10px;">Версия <span id="versionDisplay">3.6.0</span></p>
+                <p style="font-size: 11px; opacity: 0.6; margin-bottom: 10px;">Версия <span id="versionDisplay">4.0.0</span></p>
                 <button class="button" onclick="startGame()">▶️ НАЧАТЬ ИГРУ</button>
                 <button class="button" onclick="showLeaderboardFromMenu()" style="margin-top: 10px;">🏆 РЕЙТИНГ</button>
                 <div class="hint" id="menuTip" style="
@@ -667,7 +671,9 @@
 
     <script>
         // ==================== ВЕРСИЯ ИГРЫ ====================
-        const GAME_VERSION = '3.7.4'; // ⭐ v3.7.4: CRITICAL FIX - input.keys reference stability for WASD on initial startup
+        const GAME_VERSION = '4.1.0';
+        const DEBUG = false; // Включи для подробных логов в консоль
+        const dlog = (...args) => { if (DEBUG) console.log(...args); };
 
         // ==================== CROSS-PLATFORM & MOBILE SUPPORT ====================
         const isTouchDevice = () => (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0));
@@ -705,6 +711,7 @@
             DOM.miceHP = document.getElementById('miceHP');
             DOM.stamina = document.getElementById('stamina');
             DOM.fps = document.getElementById('fps');
+            DOM.scoreDisplay = document.getElementById('scoreDisplay');
             DOM.controls = document.getElementById('controls');
             DOM.controllerIndicator = document.getElementById('controllerIndicator');
             DOM.versionDisplay = document.getElementById('versionDisplay');
@@ -727,42 +734,57 @@
         let devicePixelRatio = window.devicePixelRatio || 1;
         let lastOrientationCheck = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
 
-        // ==================== РЕНДЕРИНГ ЭМОДЗИ - РАБОТАЕТ НА ВСЕХ БРАУЗЕРАХ ====================
-        // Правильный font stack для Safari, Chrome, Firefox, Edge и мобильных браузеров
-        function drawEmoji(ctx, emoji, x, y, fontSize) {
-            ctx.save();
+        // ==================== РЕНДЕРИНГ ЭМОДЗИ ====================
+        // ⭐ v4.0: Один font stack, без try/catch — ctx.font не бросает, а фолбэк делает браузер
+        const EMOJI_FONT_STACK = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla","EmojiOne Color",Arial,sans-serif';
+        function drawEmoji(ctx, emoji, x, y, fontSize, alpha = 1) {
+            ctx.font = `${fontSize}px ${EMOJI_FONT_STACK}`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillStyle = '#000000';
-
-            // Safari требует явного указания цветного эмодзи шрифта
-            // Порядок важен: сначала проверяем Apple Color Emoji, потом остальные
-            const fonts = [
-                `${fontSize}px "Apple Color Emoji"`,
-                `${fontSize}px "Segoe UI Emoji"`,
-                `${fontSize}px "Noto Color Emoji"`,
-                `${fontSize}px Arial`,
-                `${fontSize}px sans-serif`
-            ];
-
-            let rendered = false;
-            for (let fontFamily of fonts) {
-                try {
-                    ctx.font = fontFamily;
-                    ctx.fillText(emoji, x, y);
-                    rendered = true;
-                    break;
-                } catch (e) {
-                    // Пытаемся следующий шрифт
-                    continue;
-                }
+            if (alpha !== 1) {
+                const prev = ctx.globalAlpha;
+                ctx.globalAlpha = prev * alpha;
+                ctx.fillText(emoji, x, y);
+                ctx.globalAlpha = prev;
+            } else {
+                ctx.fillText(emoji, x, y);
             }
+        }
 
-            if (!rendered) {
-                console.log('⚠️ Не удалось отрендерить эмодзи:', emoji);
-            }
-
+        // ⭐ v4.0: Мягкая тень под сущностью
+        function drawShadow(ctx, x, y, radius, opacity = 0.35) {
+            ctx.save();
+            ctx.fillStyle = `rgba(0,0,0,${opacity})`;
+            ctx.beginPath();
+            ctx.ellipse(x, y + radius * 0.7, radius * 0.9, radius * 0.35, 0, 0, Math.PI * 2);
+            ctx.fill();
             ctx.restore();
+        }
+
+        // ⭐ v4.0: Фоновый паттерн пола (плитка)
+        function createFloorPattern(ctx) {
+            const size = 60;
+            const off = document.createElement('canvas');
+            off.width = size; off.height = size;
+            const octx = off.getContext('2d');
+            // Базовый тёплый тон
+            octx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+            octx.fillRect(0, 0, size, size);
+            // Лёгкие линии сетки
+            octx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+            octx.lineWidth = 1;
+            octx.beginPath();
+            octx.moveTo(0, 0); octx.lineTo(size, 0);
+            octx.moveTo(0, 0); octx.lineTo(0, size);
+            octx.stroke();
+            // Крапинки
+            octx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+            for (let i = 0; i < 4; i++) {
+                octx.beginPath();
+                octx.arc(Math.random() * size, Math.random() * size, Math.random() * 1.2 + 0.3, 0, Math.PI * 2);
+                octx.fill();
+            }
+            return ctx.createPattern(off, 'repeat');
         }
 
         function getOptimalCanvasSize() {
@@ -780,8 +802,8 @@
         // ==================== КОНФИГУРАЦИЯ ====================
         const CONFIG = {
             friction: 0.82,
-            mouseSpeed: 1.2,           // ⭐ v3.6.0: Понижена базовая скорость (было 1.5)
-            mouseSprintSpeed: 2.0,     // ⭐ v3.6.0: Понижена скорость спринта (было 2.8, дельта: 1.67x)
+            mouseSpeed: 1.2,
+            mouseSprintSpeed: 2.0,
             mouseMaxHP: 100,
             catDamage: 3,
             catSpeed: 2.0,
@@ -794,35 +816,84 @@
             mouseSize: 25,
             catSize: 28,
             maxStamina: 100,
-            staminaDecayRun: 2.0,      // Быстрее истощается стамина на спринте
-            staminaRecovery: 0.6,      // Медленнее восстанавливается
+            staminaDecayRun: 2.0,
+            staminaRecovery: 0.6,
             noiseDecay: 2,
             healingSpeed: 0.5,
             burrowRadius: 35,
+            // ⭐ v4.0: Новые механики
+            trapTelegraphRange: 80,    // Расстояние, на котором ловушка начинает мигать
+            trapTriggerDelay: 18,      // Кадров задержки перед срабатыванием
+            comboWindow: 180,          // Кадров на поддержание комбо (~3 секунды)
+            comboMaxMultiplier: 5,     // Максимальный множитель комбо
+            goldenCheeseChance: 0.12,  // Шанс что сыр будет золотым
+            powerupChance: 0.08,       // Шанс что появится бустер
+            powerupDuration: 300,      // Кадров длится эффект (~5 секунд)
+            mouseTrailAlpha: 0.35,
+            screenShakeMax: 18,
         };
 
+        // ==================== ТЕМАТИЧЕСКИЕ УРОВНИ ====================
+        // ⭐ v4.1: Каждый 5-й уровень получает новую тему с уникальным цветом, набором предметов и ambient-эффектами
+        const LEVEL_THEMES = [
+            {
+                name: 'КУХНЯ', subtitle: 'Миссия: стащить сыр с кухни!',
+                bgInner: '#4a2f1a', bgOuter: '#1a0f08', accent: '#ffb347',
+                obstacles: ['🪑','🥣','🍳','🫖','🍾','📦','🧊','🥤','🪴','🧂'],
+                ambient: '✨', ambientColor: 'rgba(255,200,120,0.6)'
+            },
+            {
+                name: 'ГОСТИНАЯ', subtitle: 'Мягкая мебель — и мягкие лапки котов',
+                bgInner: '#3d2b55', bgOuter: '#1a1028', accent: '#c98bff',
+                obstacles: ['🛋️','📺','🪑','🕯️','🌿','🪴','🎸','📚','🏺','🖼️'],
+                ambient: '💫', ambientColor: 'rgba(200,140,255,0.5)'
+            },
+            {
+                name: 'САД', subtitle: 'Зелень, шорохи и кошки в засаде',
+                bgInner: '#1f3f28', bgOuter: '#0a1a0e', accent: '#8ae063',
+                obstacles: ['🌳','🌲','🌵','🌻','🪨','🌿','🍂','🌾','🌷','🪵'],
+                ambient: '🍃', ambientColor: 'rgba(140,230,120,0.5)'
+            },
+            {
+                name: 'ПОДВАЛ', subtitle: 'Темно, страшно — и очень много ловушек',
+                bgInner: '#2a2a36', bgOuter: '#0a0a12', accent: '#ff6b6b',
+                obstacles: ['📦','🗑️','🪑','🕸️','🛢️','🔧','⚙️','🪤','🧹','🪣'],
+                ambient: '·', ambientColor: 'rgba(140,140,160,0.4)'
+            },
+            {
+                name: 'СПАЛЬНЯ', subtitle: 'Тихо: хозяин спит. Пока.',
+                bgInner: '#4a2b3a', bgOuter: '#1a0e1a', accent: '#ff8eb1',
+                obstacles: ['🛏️','🧸','📚','🪞','👟','🧦','🎀','🎒','👑','🕯️'],
+                ambient: '💤', ambientColor: 'rgba(255,180,220,0.5)'
+            },
+        ];
+        function getTheme(level) { return LEVEL_THEMES[(level - 1) % LEVEL_THEMES.length]; }
+
         function getLevelConfig(level) {
-            // Ограничиваем врагов чтобы не было лага на высоких уровнях
             const maxCats = 8;
             const maxMice = 8;
 
+            // ⭐ v4.0: Более плавный рост сложности + больше норок с уровнем
             const base = {
-                mice: Math.min(1 + Math.floor((level - 1) / 1), maxMice),
-                cats: Math.min(1 + Math.floor((level - 1) / 1), maxCats),
+                mice: Math.min(1 + Math.floor(level / 2), maxMice),
+                cats: Math.min(1 + Math.floor(level / 2), maxCats),
                 cheese: 3 + (level - 1) * 2,
-                obstacles: Math.min(8 + (level - 1) * 2, 25), // Максимум 25 препятствий
-                burrows: 1,
-                traps: Math.max(0, Math.min(level - 2, 5)), // Максимум 5 мышеловок
+                obstacles: Math.min(10 + (level - 1) * 2, 28),
+                burrows: Math.min(1 + Math.floor((level - 1) / 2), 4),
+                traps: Math.max(0, Math.min(level - 2, 6)),
+                powerups: level >= 2 ? Math.min(1 + Math.floor((level - 1) / 3), 3) : 0,
+                // ⭐ v4.1: Новые сущности
+                butterflies: level >= 2 ? Math.min(1 + Math.floor((level - 1) / 3), 4) : 1,
+                rollBalls: level >= 4 ? Math.min(Math.floor((level - 2) / 3), 3) : 0,
+                theme: getTheme(level),
             };
 
-            // Ограничиваем размер поля, чтобы не выходил за границы окна браузера
             const maxWidth = Math.min(window.innerWidth * 0.95, 2400);
             const maxHeight = Math.min(window.innerHeight * 0.85, 1800);
 
             let roomWidth = 1000 + (level - 1) * 150;
             let roomHeight = 800 + (level - 1) * 100;
 
-            // Не превышаем максимальные размеры
             roomWidth = Math.min(roomWidth, maxWidth);
             roomHeight = Math.min(roomHeight, maxHeight);
 
@@ -830,14 +901,19 @@
         }
 
         // ==================== ПРОСТРАНСТВЕННАЯ СЕТКА ====================
+        // ⭐ v4.0: Переиспользуемые аккумуляторы, чтобы не аллоцировать массивы в hot path
         class SpatialGrid {
             constructor(width, height, cellSize = 100) {
                 this.cellSize = cellSize;
                 this.cols = Math.ceil(width / cellSize);
                 this.rows = Math.ceil(height / cellSize);
-                this.grid = Array(this.cols * this.rows).fill(null).map(() => ({
-                    mice: [], cats: [], obstacles: [], items: []
-                }));
+                const total = this.cols * this.rows;
+                this.grid = new Array(total);
+                for (let i = 0; i < total; i++) {
+                    this.grid[i] = { mice: [], cats: [], obstacles: [], items: [] };
+                }
+                // Shared result объект для минимизации аллокаций
+                this._result = { mice: [], cats: [], obstacles: [], items: [] };
             }
 
             getCell(x, y) {
@@ -848,24 +924,28 @@
             }
 
             getNearby(x, y, distance) {
-                const result = { mice: [], cats: [], obstacles: [], items: [] };
-                const bounds = getGridBounds(x, y, distance, this);
-                const { minCol, maxCol, minRow, maxRow } = bounds;
+                const r = this._result;
+                r.mice.length = 0; r.cats.length = 0; r.obstacles.length = 0; r.items.length = 0;
+
+                const cs = this.cellSize;
+                const minCol = Math.max(0, Math.floor((x - distance) / cs));
+                const maxCol = Math.min(this.cols - 1, Math.floor((x + distance) / cs));
+                const minRow = Math.max(0, Math.floor((y - distance) / cs));
+                const maxRow = Math.min(this.rows - 1, Math.floor((y + distance) / cs));
 
                 for (let row = minRow; row <= maxRow; row++) {
+                    const rowBase = row * this.cols;
                     for (let col = minCol; col <= maxCol; col++) {
-                        // ⭐ v3.6.0: БЕЗОПАСНОСТЬ - проверяем границы перед доступом к массиву
-                        if (row < 0 || row >= this.rows || col < 0 || col >= this.cols) continue;
-                        const cell = this.grid[row * this.cols + col];
-                        if (!cell) continue;  // Дополнительная защита
-                        // Оптимизация: вместо spread оператора используем цикл (быстрее на больших массивах)
-                        for (let i = 0; i < cell.mice.length; i++) result.mice.push(cell.mice[i]);
-                        for (let i = 0; i < cell.cats.length; i++) result.cats.push(cell.cats[i]);
-                        for (let i = 0; i < cell.obstacles.length; i++) result.obstacles.push(cell.obstacles[i]);
-                        for (let i = 0; i < cell.items.length; i++) result.items.push(cell.items[i]);
+                        const cell = this.grid[rowBase + col];
+                        if (!cell) continue;
+                        const om = cell.mice, oc = cell.cats, oo = cell.obstacles, oi = cell.items;
+                        for (let i = 0; i < om.length; i++) r.mice.push(om[i]);
+                        for (let i = 0; i < oc.length; i++) r.cats.push(oc[i]);
+                        for (let i = 0; i < oo.length; i++) r.obstacles.push(oo[i]);
+                        for (let i = 0; i < oi.length; i++) r.items.push(oi[i]);
                     }
                 }
-                return result;
+                return r;
             }
 
             clear() {
@@ -884,24 +964,41 @@
         }
 
         // ==================== ПУЛЛ ЧАСТИЦ ====================
+        // ⭐ v4.0: Расширенные частицы — вращение, размер, свой decay, опциональная гравитация
         class ParticlePool {
             constructor(size = 500) {
                 this.pool = [];
                 this.active = [];
                 for (let i = 0; i < size; i++) {
-                    this.pool.push({
-                        x: 0, y: 0, vx: 0, vy: 0, life: 0, emoji: '✨'
-                    });
+                    this.pool.push(this._makeParticle());
                 }
             }
 
-            get(x, y, emoji = '✨') {
-                const p = this.pool.length > 0 ? this.pool.pop() :
-                    { x: 0, y: 0, vx: 0, vy: 0, life: 0, emoji: '✨' };
+            _makeParticle() {
+                return { x: 0, y: 0, vx: 0, vy: 0, life: 0, emoji: '✨', size: 20, rot: 0, rotSpeed: 0, decay: 0.05, gravity: 0.2 };
+            }
+
+            get(x, y, emoji = '✨', opts) {
+                const p = this.pool.length > 0 ? this.pool.pop() : this._makeParticle();
                 p.x = x;
                 p.y = y;
-                p.vx = (Math.random() - 0.5) * 6;
-                p.vy = (Math.random() - 0.5) * 6 - 2;
+                if (opts) {
+                    p.vx = opts.vx !== undefined ? opts.vx : (Math.random() - 0.5) * 6;
+                    p.vy = opts.vy !== undefined ? opts.vy : (Math.random() - 0.5) * 6 - 2;
+                    p.size = opts.size || 20;
+                    p.decay = opts.decay || 0.05;
+                    p.gravity = opts.gravity !== undefined ? opts.gravity : 0.2;
+                    p.rot = opts.rot || 0;
+                    p.rotSpeed = opts.rotSpeed !== undefined ? opts.rotSpeed : (Math.random() - 0.5) * 0.3;
+                } else {
+                    p.vx = (Math.random() - 0.5) * 6;
+                    p.vy = (Math.random() - 0.5) * 6 - 2;
+                    p.size = 20;
+                    p.decay = 0.05;
+                    p.gravity = 0.2;
+                    p.rot = 0;
+                    p.rotSpeed = (Math.random() - 0.5) * 0.3;
+                }
                 p.life = 1;
                 p.emoji = emoji;
                 this.active.push(p);
@@ -909,43 +1006,216 @@
             }
 
             update() {
-                // ⭐ v3.6.0: ОПТИМИЗАЦИЯ - избегаем O(n) операций shift() при удалении частиц
-                const maxActive = 150;
+                const maxActive = 220;
                 if (this.active.length > maxActive) {
-                    // Вместо shift() (O(n)) используем slice (O(n) один раз вместо множественных)
                     const toRemove = this.active.length - maxActive;
                     for (let j = 0; j < toRemove; j++) {
-                        this.pool.push(this.active[j]);  // Возвращаем в пул первые toRemove элементов
+                        this.pool.push(this.active[j]);
                     }
-                    // Удаляем первые toRemove элементов за один раз (O(n))
                     this.active.splice(0, toRemove);
                 }
 
-                // Обновляем активные частицы в обратном порядке для безопасного удаления
                 for (let i = this.active.length - 1; i >= 0; i--) {
                     const p = this.active[i];
                     p.x += p.vx;
                     p.y += p.vy;
-                    p.vy += 0.2;
-                    p.life -= 0.05;
+                    p.vy += p.gravity;
+                    p.rot += p.rotSpeed;
+                    p.life -= p.decay;
                     if (p.life <= 0) {
-                        // Вместо splice (O(n)) удаляем прямо по индексу
-                        // (полагаемся на цикл в обратном порядке)
-                        this.pool.push(this.active[i]);
-                        this.active[i] = this.active[this.active.length - 1];  // Перемещаем последний элемент
-                        this.active.pop();  // Удаляем последний элемент (O(1))
+                        this.pool.push(p);
+                        this.active[i] = this.active[this.active.length - 1];
+                        this.active.pop();
                     }
                 }
             }
 
             draw(ctx) {
+                ctx.save();
                 for (let i = 0; i < this.active.length; i++) {
                     const p = this.active[i];
-                    ctx.globalAlpha = p.life;
-                    // Частицы - пытаемся эмодзи, но могут быть невидимы
-                    drawEmoji(ctx, p.emoji, p.x, p.y, 20 * p.life);
+                    ctx.globalAlpha = Math.max(0, p.life);
+                    if (p.rot !== 0) {
+                        ctx.translate(p.x, p.y);
+                        ctx.rotate(p.rot);
+                        drawEmoji(ctx, p.emoji, 0, 0, p.size * Math.max(0.3, p.life));
+                        ctx.rotate(-p.rot);
+                        ctx.translate(-p.x, -p.y);
+                    } else {
+                        drawEmoji(ctx, p.emoji, p.x, p.y, p.size * Math.max(0.3, p.life));
+                    }
+                }
+                ctx.globalAlpha = 1;
+                ctx.restore();
+            }
+        }
+
+        // ==================== SCORE POPUPS & SCREEN SHAKE ====================
+        // ⭐ v4.0: Плавающие тексты "+20", "+100!" при сборе сыра
+        const scorePopups = [];
+        function addScorePopup(x, y, text, color = '#FFD93D') {
+            scorePopups.push({ x, y, text, color, life: 1, vy: -1.5 });
+            if (scorePopups.length > 30) scorePopups.shift();
+        }
+        function updateScorePopups() {
+            for (let i = scorePopups.length - 1; i >= 0; i--) {
+                const p = scorePopups[i];
+                p.y += p.vy;
+                p.vy *= 0.96;
+                p.life -= 0.018;
+                if (p.life <= 0) scorePopups.splice(i, 1);
+            }
+        }
+        function drawScorePopups(ctx) {
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            for (let i = 0; i < scorePopups.length; i++) {
+                const p = scorePopups[i];
+                ctx.globalAlpha = Math.max(0, p.life);
+                ctx.font = `bold ${Math.round(18 + (1 - p.life) * 6)}px Arial, sans-serif`;
+                ctx.fillStyle = 'rgba(0,0,0,0.65)';
+                ctx.fillText(p.text, p.x + 2, p.y + 2);
+                ctx.fillStyle = p.color;
+                ctx.fillText(p.text, p.x, p.y);
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
+        }
+
+        // ⭐ v4.0: In-canvas HUD (combo + активные power-ups у ведущей мыши)
+        function drawHUD(ctx, canvas) {
+            // Combo
+            if (gameState.comboCount >= 2) {
+                const mult = Math.min(Math.floor((gameState.comboCount + 1) / 2), CONFIG.comboMaxMultiplier);
+                const timerRatio = Math.max(0, gameState.comboTimer / CONFIG.comboWindow);
+                ctx.save();
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'top';
+                const padding = 16;
+                const x = canvas.width - padding;
+                const y = padding;
+                ctx.font = 'bold 24px Arial, sans-serif';
+                ctx.fillStyle = 'rgba(0,0,0,0.55)';
+                ctx.fillText(`КОМБО ×${mult}`, x + 2, y + 2);
+                ctx.fillStyle = mult >= 4 ? '#FF6B6B' : mult >= 3 ? '#FFD93D' : '#6BCB77';
+                ctx.fillText(`КОМБО ×${mult}`, x, y);
+                // Полоска таймера
+                const barW = 120;
+                ctx.fillStyle = 'rgba(0,0,0,0.45)';
+                ctx.fillRect(x - barW, y + 30, barW, 5);
+                ctx.fillStyle = '#FFD93D';
+                ctx.fillRect(x - barW, y + 30, barW * timerRatio, 5);
+                ctx.restore();
+            }
+
+            // Активные power-ups на ведущей мыши
+            const mouse = gameState.mice[gameState.selectedMouse];
+            if (mouse && mouse.alive) {
+                const icons = [];
+                if (mouse.powerInvis > 0) icons.push({ emoji: '👻', ratio: mouse.powerInvis / CONFIG.powerupDuration, color: '#9C27B0' });
+                if (mouse.powerSpeed > 0) icons.push({ emoji: '⚡', ratio: mouse.powerSpeed / CONFIG.powerupDuration, color: '#FFD700' });
+                if (mouse.powerShield > 0) icons.push({ emoji: '🛡️', ratio: mouse.powerShield / CONFIG.powerupDuration, color: '#00BCD4' });
+
+                if (icons.length > 0) {
+                    ctx.save();
+                    const iconSize = 34;
+                    const gap = 8;
+                    const startX = 16;
+                    const startY = canvas.height - iconSize - 16;
+                    for (let i = 0; i < icons.length; i++) {
+                        const ic = icons[i];
+                        const ix = startX + i * (iconSize + gap);
+                        // Фон иконки
+                        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+                        ctx.fillRect(ix, startY, iconSize, iconSize);
+                        // Полоска прогресса
+                        ctx.fillStyle = ic.color;
+                        ctx.fillRect(ix, startY + iconSize - 4, iconSize * ic.ratio, 4);
+                        drawEmoji(ctx, ic.emoji, ix + iconSize / 2, startY + iconSize / 2 - 2, iconSize * 0.8);
+                    }
+                    ctx.restore();
                 }
             }
+        }
+
+        // ⭐ v4.1: STEALTH LIGHTING — темнеет экран кроме области вокруг мышей и норок.
+        // Собираем маску на offscreen-канвасе, затем рисуем как один dark overlay.
+        let _stealthCanvas = null, _stealthCtx = null;
+        function drawStealthLighting(ctx, canvas) {
+            if (gameState.currentLevel < 3) return;
+            const darknessAmount = Math.min(0.72, 0.25 + (gameState.currentLevel - 3) * 0.08);
+
+            if (!_stealthCanvas || _stealthCanvas.width !== canvas.width || _stealthCanvas.height !== canvas.height) {
+                _stealthCanvas = document.createElement('canvas');
+                _stealthCanvas.width = canvas.width;
+                _stealthCanvas.height = canvas.height;
+                _stealthCtx = _stealthCanvas.getContext('2d');
+            }
+            const sctx = _stealthCtx;
+            // Чистим и заливаем тьмой
+            sctx.globalCompositeOperation = 'source-over';
+            sctx.clearRect(0, 0, canvas.width, canvas.height);
+            sctx.fillStyle = `rgba(0, 0, 0, ${darknessAmount})`;
+            sctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Вырезаем "фонари" — destination-out на offscreen
+            sctx.globalCompositeOperation = 'destination-out';
+
+            // Мыши — главный свет
+            for (let i = 0; i < gameState.mice.length; i++) {
+                const m = gameState.mice[i];
+                if (!m.alive) continue;
+                const lightR = m.inBurrow ? 70 : 180;
+                const grad = sctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, lightR);
+                grad.addColorStop(0, 'rgba(0,0,0,1)');
+                grad.addColorStop(0.6, 'rgba(0,0,0,0.6)');
+                grad.addColorStop(1, 'rgba(0,0,0,0)');
+                sctx.fillStyle = grad;
+                sctx.beginPath();
+                sctx.arc(m.x, m.y, lightR, 0, Math.PI * 2);
+                sctx.fill();
+            }
+            // Норки
+            for (let i = 0; i < gameState.burrows.length; i++) {
+                const b = gameState.burrows[i];
+                const grad = sctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, 90);
+                grad.addColorStop(0, 'rgba(0,0,0,0.7)');
+                grad.addColorStop(1, 'rgba(0,0,0,0)');
+                sctx.fillStyle = grad;
+                sctx.beginPath();
+                sctx.arc(b.x, b.y, 90, 0, Math.PI * 2);
+                sctx.fill();
+            }
+            // Коты — тоже подсвечивают вокруг себя
+            for (let i = 0; i < gameState.cats.length; i++) {
+                const c = gameState.cats[i];
+                const grad = sctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, 150);
+                grad.addColorStop(0, 'rgba(0,0,0,0.5)');
+                grad.addColorStop(1, 'rgba(0,0,0,0)');
+                sctx.fillStyle = grad;
+                sctx.beginPath();
+                sctx.arc(c.x, c.y, 150, 0, Math.PI * 2);
+                sctx.fill();
+            }
+            sctx.globalCompositeOperation = 'source-over';
+
+            // Клеим готовую маску поверх сцены
+            ctx.drawImage(_stealthCanvas, 0, 0);
+        }
+
+        // Screen shake
+        const shakeState = { magnitude: 0, decay: 0.88 };
+        function addShake(amount) {
+            shakeState.magnitude = Math.min(CONFIG.screenShakeMax, Math.max(shakeState.magnitude, amount));
+        }
+        function applyShake(ctx) {
+            if (shakeState.magnitude <= 0.1) { shakeState.magnitude = 0; return { x: 0, y: 0 }; }
+            const ox = (Math.random() - 0.5) * shakeState.magnitude * 2;
+            const oy = (Math.random() - 0.5) * shakeState.magnitude * 2;
+            ctx.translate(ox, oy);
+            shakeState.magnitude *= shakeState.decay;
+            return { x: ox, y: oy };
         }
 
         // ==================== УТИЛИТЫ ПРОВЕРКИ ГРАНИЦ ====================
@@ -1092,7 +1362,6 @@
                 this.vy = 0;
                 this.radius = CONFIG.mouseSize;
                 this.alive = true;
-                this.emoji = '🐭';
                 this.stamina = CONFIG.maxStamina;
                 this.isSprinting = false;
                 this.noiseLevel = 0;
@@ -1100,36 +1369,65 @@
                 this.hp = CONFIG.mouseMaxHP;
                 this.inBurrow = false;
                 this.burrowHealingTimer = 0;
+                // ⭐ v4.0: Trail + power-ups
+                this.trail = [];
+                this.facing = 1;
+                this.powerInvis = 0;
+                this.powerSpeed = 0;
+                this.powerShield = 0;
+                this.damageFlash = 0;
+                // ⭐ v4.1: Анимация ходьбы + варианты
+                this.walkPhase = 0;
+                this.lastSpeed = 0;
+                this.deathRotation = 0;
+                this.deathScale = 1;
+                const mouseVariants = ['🐭', '🐹', '🐀', '🐁'];
+                this.emoji = mouseVariants[Math.floor(Math.random() * mouseVariants.length)];
             }
 
             update(grid, gameState, mergedInput, deltaTime = 1) {
-                // ⭐ v3.6.0: МОДУЛЬНЫЙ UPDATE - вызывает подметоды вместо inline-кода
                 const input = mergedInput || getMergedInput();
 
                 if (!this.alive) return;
 
-                // Базовая физика
+                // ⭐ v4.0: Тикают бустеры
+                if (this.powerInvis > 0) this.powerInvis -= deltaTime;
+                if (this.powerSpeed > 0) this.powerSpeed -= deltaTime;
+                if (this.powerShield > 0) this.powerShield -= deltaTime;
+                if (this.damageFlash > 0) this.damageFlash -= deltaTime;
+
                 this.vx *= CONFIG.friction;
                 this.vy *= CONFIG.friction;
 
                 const isSelected = gameState.selectedMouse === gameState.mice.indexOf(this);
 
-                // Движение и выносливость
                 const { isMoving, isSprintActive } = this.updateMovement(input, deltaTime);
                 this.updateStamina(isMoving, isSprintActive, deltaTime);
                 if (isSprintActive && isMoving) gameState.globalNoise += 3 * deltaTime;
                 if (isMoving && !isSprintActive) gameState.globalNoise += 1 * deltaTime;
                 this.updateNoise(deltaTime);
 
-                // Коллизии и позиция
+                // ⭐ v4.0: Trail points (только если двигаемся и выбраны)
+                if (isSelected && isMoving && !this.inBurrow) {
+                    this.trail.push({ x: this.x, y: this.y, life: 1 });
+                    if (this.trail.length > 14) this.trail.shift();
+                }
+                for (let i = this.trail.length - 1; i >= 0; i--) {
+                    this.trail[i].life -= 0.08 * deltaTime;
+                    if (this.trail[i].life <= 0) this.trail.splice(i, 1);
+                }
+
+                // Определяем направление для отражения спрайта
+                if (Math.abs(this.vx) > 0.1) this.facing = this.vx > 0 ? 1 : -1;
+
                 this.checkObstacleCollisions(gameState);
                 this.updateBurrow(input, gameState, isSelected);
                 this.updateHiding(gameState);
                 this.updatePosition(gameState);
                 this.checkMouseCollisions(gameState);
 
-                // Сбор предметов и враги
                 this.checkCheeseCollisions(gameState);
+                this.checkPowerupCollisions(gameState);
                 this.checkCatCollisions(gameState);
                 this.checkTrapCollisions(gameState);
             }
@@ -1139,13 +1437,24 @@
             // Обновление движения на основе input
             updateMovement(input, deltaTime) {
                 const isSprintActive = input.keys['Shift'] && this.stamina > 10;
-                const speed = (isSprintActive ? CONFIG.mouseSprintSpeed : CONFIG.mouseSpeed) * deltaTime;
+                let speedMul = isSprintActive ? CONFIG.mouseSprintSpeed : CONFIG.mouseSpeed;
+                // ⭐ v4.0: Power-up speed boost
+                if (this.powerSpeed > 0) speedMul *= 1.5;
+                const speed = speedMul * deltaTime;
 
-                let isMoving = false;
-                if (input.keys['w'] || input.keys['ArrowUp']) { this.vy -= speed; isMoving = true; }
-                if (input.keys['s'] || input.keys['ArrowDown']) { this.vy += speed; isMoving = true; }
-                if (input.keys['a'] || input.keys['ArrowLeft']) { this.vx -= speed; isMoving = true; }
-                if (input.keys['d'] || input.keys['ArrowRight']) { this.vx += speed; isMoving = true; }
+                let dx = 0, dy = 0;
+                if (input.keys['w'] || input.keys['ArrowUp']) dy -= 1;
+                if (input.keys['s'] || input.keys['ArrowDown']) dy += 1;
+                if (input.keys['a'] || input.keys['ArrowLeft']) dx -= 1;
+                if (input.keys['d'] || input.keys['ArrowRight']) dx += 1;
+
+                const isMoving = dx !== 0 || dy !== 0;
+                if (isMoving) {
+                    // Нормализуем диагональное движение чтобы оно не было быстрее
+                    const len = Math.hypot(dx, dy);
+                    this.vx += (dx / len) * speed;
+                    this.vy += (dy / len) * speed;
+                }
 
                 return { isMoving, isSprintActive };
             }
@@ -1153,16 +1462,13 @@
             // Обновление выносливости
             updateStamina(isMoving, isSprintActive, deltaTime) {
                 if (isSprintActive && isMoving && this.stamina > 0) {
-                    this.stamina -= CONFIG.staminaDecayRun * deltaTime;
+                    this.stamina = Math.max(0, this.stamina - CONFIG.staminaDecayRun * deltaTime);
                     this.noiseLevel += 5 * deltaTime;
-                    return true;
-                } else if (isMoving && this.stamina < CONFIG.maxStamina) {
-                    this.noiseLevel += 2 * deltaTime;
-                    this.stamina = Math.min(this.stamina + CONFIG.staminaRecovery * deltaTime, CONFIG.maxStamina);
-                    return false;
-                } else if (this.stamina < CONFIG.maxStamina) {
-                    this.stamina = Math.min(this.stamina + CONFIG.staminaRecovery * deltaTime, CONFIG.maxStamina);
-                    return false;
+                } else {
+                    if (isMoving) this.noiseLevel += 2 * deltaTime;
+                    if (this.stamina < CONFIG.maxStamina) {
+                        this.stamina = Math.min(this.stamina + CONFIG.staminaRecovery * deltaTime, CONFIG.maxStamina);
+                    }
                 }
             }
 
@@ -1270,9 +1576,76 @@
                     const minDistSq = (this.radius + cheese.radius) * (this.radius + cheese.radius);
                     if (getDistanceSq(this.x, this.y, cheese.x, cheese.y) < minDistSq) {
                         gameState.collectedCheese++;
-                        gameState.score += (gameState.currentLevel * 10) + (this.stamina > 80 ? 20 : 5);
-                        for (let j = 0; j < 8; j++) gameState.particles.get(cheese.x, cheese.y, '🧀');
+
+                        // ⭐ v4.0: Combo система
+                        if (gameState.comboTimer > 0) {
+                            gameState.comboCount = Math.min(gameState.comboCount + 1, CONFIG.comboMaxMultiplier * 2);
+                        } else {
+                            gameState.comboCount = 1;
+                        }
+                        gameState.comboTimer = CONFIG.comboWindow;
+                        const mult = Math.min(Math.floor((gameState.comboCount + 1) / 2), CONFIG.comboMaxMultiplier);
+
+                        const isGolden = cheese.golden;
+                        const baseScore = (gameState.currentLevel * 10) + (this.stamina > 80 ? 20 : 5);
+                        const goldenMul = isGolden ? 4 : 1;
+                        const gained = Math.round(baseScore * mult * goldenMul);
+                        gameState.score += gained;
+
+                        // Popup текст
+                        const popupText = `+${gained}${mult > 1 ? ` ×${mult}` : ''}${isGolden ? ' 🌟' : ''}`;
+                        addScorePopup(cheese.x, cheese.y - 15, popupText, isGolden ? '#FFD700' : '#FFE66D');
+
+                        // ⭐ v4.1: Kudos
+                        if (isGolden) addKudos('golden');
+                        else if (mult === 3 && gameState.comboCount === 5) addKudos('combo3');
+                        else if (mult >= 5) addKudos('combo5');
+
+                        // Частицы
+                        const pCount = isGolden ? 16 : 8;
+                        for (let j = 0; j < pCount; j++) {
+                            gameState.particles.get(cheese.x, cheese.y, isGolden ? '✨' : '🧀', {
+                                size: isGolden ? 16 : 18,
+                                decay: 0.04
+                            });
+                        }
+
+                        // Золотой сыр даёт короткий спид-буст
+                        if (isGolden) {
+                            this.powerSpeed = Math.max(this.powerSpeed, 120);
+                            this.stamina = Math.min(CONFIG.maxStamina, this.stamina + 30);
+                        }
+
                         gameState.cheese.splice(i, 1);
+                        playSound('cheese');
+                    }
+                }
+            }
+
+            // Power-ups (бустеры)
+            checkPowerupCollisions(gameState) {
+                if (!gameState.powerups) return;
+                for (let i = gameState.powerups.length - 1; i >= 0; i--) {
+                    const pu = gameState.powerups[i];
+                    const minDistSq = (this.radius + pu.radius) * (this.radius + pu.radius);
+                    if (getDistanceSq(this.x, this.y, pu.x, pu.y) < minDistSq) {
+                        if (pu.kind === 'invis') {
+                            this.powerInvis = CONFIG.powerupDuration;
+                            addScorePopup(pu.x, pu.y - 15, 'НЕВИДИМОСТЬ!', '#9C27B0');
+                        } else if (pu.kind === 'speed') {
+                            this.powerSpeed = CONFIG.powerupDuration;
+                            addScorePopup(pu.x, pu.y - 15, 'УСКОРЕНИЕ!', '#FFD700');
+                        } else if (pu.kind === 'shield') {
+                            this.powerShield = CONFIG.powerupDuration;
+                            addScorePopup(pu.x, pu.y - 15, 'ЩИТ!', '#00BCD4');
+                        } else if (pu.kind === 'heal') {
+                            this.hp = CONFIG.mouseMaxHP;
+                            addScorePopup(pu.x, pu.y - 15, 'ЛЕЧЕНИЕ!', '#4CAF50');
+                        }
+                        for (let j = 0; j < 14; j++) {
+                            gameState.particles.get(pu.x, pu.y, pu.emoji, { size: 22, decay: 0.035 });
+                        }
+                        gameState.powerups.splice(i, 1);
                         playSound('cheese');
                     }
                 }
@@ -1281,20 +1654,38 @@
             // Кошки
             checkCatCollisions(gameState) {
                 if (this.inBurrow) return;
+                // ⭐ v4.0: Невидимость защищает от обнаружения
+                const invisible = this.powerInvis > 0;
 
                 for (let i = 0; i < gameState.cats.length; i++) {
                     const cat = gameState.cats[i];
-                    if (cat.canSee(this) || cat.canHear(this)) {
+                    if (!invisible && (cat.canSee(this) || cat.canHear(this))) {
                         if (!cat.target) playSound('danger');
                         cat.target = this;
+                        cat.lastSeenPosition = { x: this.x, y: this.y };
                     }
                     const catchDist = this.radius + cat.radius;
                     if (getDistanceSq(this.x, this.y, cat.x, cat.y) < catchDist * catchDist) {
+                        // Щит поглощает урон
+                        if (this.powerShield > 0) {
+                            this.powerShield = 0;
+                            addScorePopup(this.x, this.y - 20, 'ЩИТ!', '#00BCD4');
+                            addKudos('shieldSave');
+                            for (let j = 0; j < 10; j++) gameState.particles.get(this.x, this.y, '✨');
+                            const dxc = cat.x - this.x, dyc = cat.y - this.y;
+                            const dd = Math.hypot(dxc, dyc) || 1;
+                            cat.vx += (dxc / dd) * 8;
+                            cat.vy += (dyc / dd) * 8;
+                            continue;
+                        }
                         this.hp -= CONFIG.catDamage;
+                        this.damageFlash = 20;
+                        addShake(6);
                         playSound('damage');
                         if (this.hp <= 0) {
                             this.alive = false;
-                            for (let j = 0; j < 5; j++) gameState.particles.get(this.x, this.y, '💔');
+                            for (let j = 0; j < 8; j++) gameState.particles.get(this.x, this.y, '💔');
+                            addShake(14);
                             playSound('caught');
                         }
                     }
@@ -1307,34 +1698,98 @@
 
                 for (let i = 0; i < gameState.traps.length; i++) {
                     const trap = gameState.traps[i];
+                    // ⭐ v4.0: Телеграф — подсветка когда рядом
+                    const distSq = getDistanceSq(this.x, this.y, trap.x, trap.y);
+                    const telegraphSq = CONFIG.trapTelegraphRange * CONFIG.trapTelegraphRange;
+                    if (!trap.triggered && distSq < telegraphSq) {
+                        trap.warning = Math.min(1, (telegraphSq - distSq) / telegraphSq);
+                    } else if (!trap.triggered) {
+                        trap.warning = Math.max(0, trap.warning - 0.03);
+                    }
+
                     const minDistSq = (this.radius + trap.radius) * (this.radius + trap.radius);
-                    if (getDistanceSq(this.x, this.y, trap.x, trap.y) < minDistSq) {
-                        this.alive = false;
-                        for (let j = 0; j < 5; j++) gameState.particles.get(this.x, this.y, '💥');
-                        playSound('trap');
+                    if (distSq < minDistSq) {
+                        if (trap.triggered) continue;
+                        if (trap.triggerDelay === undefined) trap.triggerDelay = CONFIG.trapTriggerDelay;
+                        trap.triggerDelay--;
+                        if (trap.triggerDelay <= 0) {
+                            trap.triggered = true;
+                            if (this.powerShield > 0) {
+                                this.powerShield = 0;
+                                addScorePopup(this.x, this.y - 20, 'ЩИТ!', '#00BCD4');
+                                for (let j = 0; j < 12; j++) gameState.particles.get(this.x, this.y, '✨');
+                            } else {
+                                this.alive = false;
+                                for (let j = 0; j < 10; j++) gameState.particles.get(this.x, this.y, '💥');
+                            }
+                            addShake(10);
+                            playSound('trap');
+                        }
+                    } else if (!trap.triggered) {
+                        trap.triggerDelay = CONFIG.trapTriggerDelay;
                     }
                 }
             }
 
             draw(ctx) {
-                if (!this.alive) return;
+                const isSelected = gameState.selectedMouse === gameState.mice.indexOf(this);
+                const now = performance.now();
 
-                // Рисуем выделение активной мыши (если это она)
-                if (gameState.selectedMouse === gameState.mice.indexOf(this)) {
+                // ⭐ v4.1: Анимация смерти — крутится и уменьшается
+                if (!this.alive) {
+                    if (this.deathScale > 0.05) {
+                        this.deathRotation += 0.15;
+                        this.deathScale *= 0.95;
+                        ctx.save();
+                        ctx.globalAlpha = this.deathScale;
+                        ctx.translate(this.x, this.y);
+                        ctx.rotate(this.deathRotation);
+                        ctx.scale(this.deathScale, this.deathScale);
+                        drawEmoji(ctx, this.emoji, 0, 0, this.radius * 2);
+                        ctx.restore();
+                    }
+                    return;
+                }
+
+                // ⭐ v4.1: Обновляем walk phase
+                const curSpeed = Math.hypot(this.vx, this.vy);
+                this.lastSpeed = curSpeed;
+                if (curSpeed > 0.3) this.walkPhase += Math.min(0.5, curSpeed * 0.1);
+
+                // ⭐ v4.0: След (трейл)
+                if (this.trail.length > 0) {
                     ctx.save();
-                    ctx.strokeStyle = 'rgba(255, 215, 0, 0.8)';
+                    for (let i = 0; i < this.trail.length; i++) {
+                        const t = this.trail[i];
+                        ctx.globalAlpha = t.life * CONFIG.mouseTrailAlpha;
+                        ctx.fillStyle = this.powerSpeed > 0 ? '#FFD700' : '#FFF1B0';
+                        ctx.beginPath();
+                        ctx.arc(t.x, t.y, this.radius * 0.5 * t.life, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    ctx.restore();
+                }
+
+                // Тень
+                if (!this.inBurrow) drawShadow(ctx, this.x, this.y, this.radius, 0.35);
+
+                // Кольцо выделения
+                if (isSelected) {
+                    ctx.save();
+                    const pulse = Math.sin(now * 0.006) * 0.15 + 0.85;
+                    ctx.strokeStyle = `rgba(255, 215, 0, ${0.8 * pulse})`;
                     ctx.lineWidth = 3;
                     ctx.beginPath();
                     ctx.arc(this.x, this.y, this.radius + 10, 0, Math.PI * 2);
                     ctx.stroke();
                     ctx.restore();
 
-                    // HP бар
+                    // HP полоска
                     ctx.save();
                     const barWidth = 50;
                     const barHeight = 5;
-                    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-                    ctx.fillRect(this.x - barWidth / 2, this.y - this.radius - 25, barWidth, barHeight);
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                    ctx.fillRect(this.x - barWidth / 2 - 1, this.y - this.radius - 26, barWidth + 2, barHeight + 2);
                     const hpRatio = this.hp / CONFIG.mouseMaxHP;
                     const barColor = hpRatio > 0.5 ? '#4CAF50' : hpRatio > 0.2 ? '#FFC107' : '#FF5722';
                     ctx.fillStyle = barColor;
@@ -1342,28 +1797,63 @@
                     ctx.restore();
                 }
 
-                // Мышь (эффект прячется в норке)
+                // Аура щита
+                if (this.powerShield > 0) {
+                    ctx.save();
+                    const shieldPulse = 0.5 + Math.sin(now * 0.008) * 0.3;
+                    ctx.strokeStyle = `rgba(0, 188, 212, ${shieldPulse})`;
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius + 12, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
+                // Кольцо шума
+                if (this.noiseLevel > 20 && !this.inBurrow) {
+                    const noiseR = 40 + this.noiseLevel;
+                    ctx.save();
+                    ctx.strokeStyle = `rgba(255, 140, 0, ${Math.min(0.4, this.noiseLevel / 200)})`;
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, noiseR, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
                 ctx.save();
                 let fontSize = this.radius * 2;
                 let alpha = 1;
 
                 if (this.inBurrow) {
-                    // Мышь в норке - меньше размер и полупрозрачна
                     fontSize = this.radius * 1.4;
-                    alpha = 0.6;
-                    // Эффект мерцания в норке
-                    const flicker = Math.sin(Date.now() * 0.01) * 0.2 + 0.8;
-                    alpha *= flicker;
+                    alpha = 0.55 + Math.sin(now * 0.008) * 0.15;
+                }
+
+                // Невидимость
+                if (this.powerInvis > 0) alpha *= 0.35;
+                // Урон флеш
+                if (this.damageFlash > 0) {
+                    ctx.shadowColor = '#FF3D3D';
+                    ctx.shadowBlur = 20 * (this.damageFlash / 20);
                 }
 
                 ctx.globalAlpha = alpha;
-                // Рисуем красивую мышь эмодзи
-                drawEmoji(ctx, this.emoji, this.x, this.y, fontSize);
 
-                // Если в норке, показываем эффект "укрытия"
+                // ⭐ v4.1: Walking bob + squash-stretch при движении
+                const bob = Math.sin(this.walkPhase) * Math.min(4, this.lastSpeed * 0.8);
+                const squashX = 1 + Math.sin(this.walkPhase * 2) * 0.08 * Math.min(1, this.lastSpeed * 0.3);
+                const squashY = 1 - Math.sin(this.walkPhase * 2) * 0.08 * Math.min(1, this.lastSpeed * 0.3);
+
+                ctx.save();
+                ctx.translate(this.x, this.y + bob);
+                ctx.scale(this.facing * squashX, squashY);
+                drawEmoji(ctx, this.emoji, 0, 0, fontSize);
+                ctx.restore();
+
                 if (this.inBurrow) {
-                    ctx.globalAlpha = 0.3;
-                    ctx.fillStyle = 'rgba(100, 150, 100, 0.5)';
+                    ctx.globalAlpha = 0.4;
+                    ctx.fillStyle = 'rgba(60, 40, 20, 0.5)';
                     ctx.beginPath();
                     ctx.arc(this.x, this.y, this.radius + 8, 0, Math.PI * 2);
                     ctx.fill();
@@ -1374,13 +1864,15 @@
         }
 
         class Cat {
-            constructor(x, y) {
+            constructor(x, y, territory) {
                 this.x = x;
                 this.y = y;
                 this.vx = 0;
                 this.vy = 0;
                 this.radius = CONFIG.catSize;
-                this.emoji = '😺';
+                // ⭐ v4.0: Разнообразие котов
+                const breeds = ['😺', '😼', '🙀', '😹', '😾'];
+                this.emoji = breeds[Math.floor(Math.random() * breeds.length)];
                 this.target = null;
                 this.direction = Math.random() * Math.PI * 2;
                 this.targetDirection = this.direction;
@@ -1388,37 +1880,84 @@
                 this.chaseTimer = 0;
                 this.alertLevel = 0;
                 this.lastSeenPosition = null;
+                // ⭐ v4.0: Территориальное поведение
+                this.territory = territory || { x: x, y: y, radius: 400 };
+                this.patrolTarget = null;
+                this.speedMul = 0.9 + Math.random() * 0.25;
+                this.visionMul = 0.9 + Math.random() * 0.25;
+                // ⭐ v4.1: Анимация моргания + лёгкая пульсация
+                this.blinkTimer = 80 + Math.random() * 120;
+                this.blinkDuration = 0;
+                this.idlePhase = Math.random() * Math.PI * 2;
+                this.lungeScale = 1;
             }
 
             canSee(mouse) {
                 if (!mouse.alive || mouse.hidden) return false;
-                if (getDistanceSq(this.x, this.y, mouse.x, mouse.y) > CONFIG.catVisionRange * CONFIG.catVisionRange) return false;
+                if (mouse.powerInvis > 0) return false;
+                const visionRange = CONFIG.catVisionRange * this.visionMul;
+                const distSq = getDistanceSq(this.x, this.y, mouse.x, mouse.y);
+                if (distSq > visionRange * visionRange) return false;
 
                 const dx = mouse.x - this.x;
                 const dy = mouse.y - this.y;
                 const angleToMouse = Math.atan2(dy, dx);
                 let angleDiff = Math.abs(this.direction - angleToMouse);
                 if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
-                return angleDiff < (CONFIG.catVisionAngle * Math.PI / 180 / 2);
+                if (angleDiff >= (CONFIG.catVisionAngle * Math.PI / 180 / 2)) return false;
+
+                // ⭐ v4.0: Проверка препятствий на пути взгляда
+                if (gameState.obstacles && gameState.obstacles.length > 0) {
+                    const dist = Math.sqrt(distSq);
+                    const steps = Math.ceil(dist / 25);
+                    for (let s = 1; s < steps; s++) {
+                        const t = s / steps;
+                        const px = this.x + dx * t;
+                        const py = this.y + dy * t;
+                        for (let i = 0; i < gameState.obstacles.length; i++) {
+                            const obs = gameState.obstacles[i];
+                            const ddx = obs.x - px;
+                            const ddy = obs.y - py;
+                            if (ddx * ddx + ddy * ddy < obs.radius * obs.radius * 0.6) return false;
+                        }
+                    }
+                }
+                return true;
             }
 
             canHear(mouse) {
                 if (!mouse.alive) return false;
+                if (mouse.powerInvis > 0 && mouse.noiseLevel < 50) return false;
                 return getDistanceSq(this.x, this.y, mouse.x, mouse.y) < CONFIG.catHearingRange * CONFIG.catHearingRange && mouse.noiseLevel > 15;
             }
 
             update(gameState, deltaTime = 1) {
-                // ⭐ v3.6.0: deltaTime нормализует движение кошек для разных частот экрана
-                // ⭐ v3.6.0: Экспоненциальное затухание friction на разных частотах экрана
                 const frictionFactor = Math.pow(CONFIG.friction, deltaTime);
                 this.vx *= frictionFactor;
                 this.vy *= frictionFactor;
                 this.alertLevel = Math.max(0, this.alertLevel - 1 * deltaTime);
 
+                // ⭐ v4.1: Анимация моргания и лёгкой пульсации
+                this.idlePhase += 0.03 * deltaTime;
+                this.blinkTimer -= deltaTime;
+                if (this.blinkTimer <= 0) {
+                    this.blinkDuration = 8;
+                    this.blinkTimer = 90 + Math.random() * 140;
+                }
+                if (this.blinkDuration > 0) this.blinkDuration -= deltaTime;
+                // Lunge — увеличивается при приближении к цели
+                if (this.target) {
+                    const targetDist = Math.hypot(this.target.x - this.x, this.target.y - this.y);
+                    const lungeT = Math.max(0, 1 - targetDist / 150);
+                    this.lungeScale += (1 + lungeT * 0.2 - this.lungeScale) * 0.15 * deltaTime;
+                } else {
+                    this.lungeScale += (1 - this.lungeScale) * 0.1 * deltaTime;
+                }
+
                 let angleDiff = this.targetDirection - this.direction;
                 if (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
                 if (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
-                this.direction += angleDiff * 0.1 * deltaTime;
+                this.direction += angleDiff * 0.12 * deltaTime;
 
                 if (this.target && this.target.alive) {
                     this.chaseTimer += deltaTime;
@@ -1429,15 +1968,27 @@
 
                     if (distSq > 25) {
                         const dist = Math.sqrt(distSq);
-                        const chaseSpeed = CONFIG.catChaseSpeed + (this.alertLevel / 100) * 0.5;
+                        const chaseSpeed = (CONFIG.catChaseSpeed + (this.alertLevel / 100) * 0.5) * this.speedMul;
                         this.vx += (dx / dist) * chaseSpeed * deltaTime;
                         this.vy += (dy / dist) * chaseSpeed * deltaTime;
                         this.targetDirection = Math.atan2(dy, dx);
                     }
 
+                    // ⭐ v4.0: Координация - оповещаем соседних котов
+                    if (gameState.cats.length > 1) {
+                        for (let i = 0; i < gameState.cats.length; i++) {
+                            const other = gameState.cats[i];
+                            if (other === this || other.target) continue;
+                            if (getDistanceSq(this.x, this.y, other.x, other.y) < 300 * 300) {
+                                other.lastSeenPosition = { x: this.target.x, y: this.target.y };
+                                other.alertLevel = Math.max(other.alertLevel, 40);
+                            }
+                        }
+                    }
+
                     if (!this.canSee(this.target) && !this.canHear(this.target)) {
-                        this.chaseTimer += deltaTime;
-                        if (this.chaseTimer > 200) {
+                        this.lastSeenPosition = { x: this.target.x, y: this.target.y };
+                        if (this.chaseTimer > 180) {
                             this.target = null;
                             this.chaseTimer = 0;
                             this.alertLevel = Math.max(0, this.alertLevel - 20);
@@ -1452,27 +2003,36 @@
 
                         if (distSq > 400) {
                             const dist = Math.sqrt(distSq);
-                            this.vx += (dx / dist) * CONFIG.catSpeed * 0.8 * deltaTime;
-                            this.vy += (dy / dist) * CONFIG.catSpeed * 0.8 * deltaTime;
+                            this.vx += (dx / dist) * CONFIG.catSpeed * 0.8 * this.speedMul * deltaTime;
+                            this.vy += (dy / dist) * CONFIG.catSpeed * 0.8 * this.speedMul * deltaTime;
                             this.targetDirection = Math.atan2(dy, dx);
                         } else {
                             this.lastSeenPosition = null;
                         }
                     } else {
+                        // ⭐ v4.0: Патруль по территории вместо случайных блужданий
                         this.patrolTimer += deltaTime;
-                        if (this.patrolTimer > 80) {
-                            this.targetDirection = Math.random() * Math.PI * 2;
+                        if (!this.patrolTarget || this.patrolTimer > 180 ||
+                            getDistanceSq(this.x, this.y, this.patrolTarget.x, this.patrolTarget.y) < 60 * 60) {
+                            const angle = Math.random() * Math.PI * 2;
+                            const r = Math.random() * this.territory.radius;
+                            this.patrolTarget = {
+                                x: this.territory.x + Math.cos(angle) * r,
+                                y: this.territory.y + Math.sin(angle) * r
+                            };
                             this.patrolTimer = 0;
                         }
-                        this.vx += Math.cos(this.targetDirection) * CONFIG.catSpeed * 0.3 * deltaTime;
-                        this.vy += Math.sin(this.targetDirection) * CONFIG.catSpeed * 0.3 * deltaTime;
+                        const pdx = this.patrolTarget.x - this.x;
+                        const pdy = this.patrolTarget.y - this.y;
+                        const pdist = Math.hypot(pdx, pdy) || 1;
+                        this.targetDirection = Math.atan2(pdy, pdx);
+                        this.vx += (pdx / pdist) * CONFIG.catSpeed * 0.35 * this.speedMul * deltaTime;
+                        this.vy += (pdy / pdist) * CONFIG.catSpeed * 0.35 * this.speedMul * deltaTime;
                     }
                 }
 
                 const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-                // ⭐ v3.6.0: maxSpeed должна быть нормализована на deltaTime!
-                // Иначе на 120Hz коты двигаются вдвое быстрее в реальном времени
-                const maxSpeedBase = this.target ? 4.5 : 3.0;
+                const maxSpeedBase = (this.target ? 4.5 : 2.4) * this.speedMul;
                 const maxSpeed = maxSpeedBase * deltaTime;
                 if (speed > maxSpeed) {
                     this.vx = (this.vx / speed) * maxSpeed;
@@ -1511,59 +2071,144 @@
 
             draw(ctx) {
                 const halfAngle = CONFIG.catVisionAngle * Math.PI / 180 / 2;
-                const intensity = 0.15 + (this.alertLevel / 100) * 0.35;
+                const visionRange = CONFIG.catVisionRange * this.visionMul;
+                const alertRatio = this.alertLevel / 100;
 
-                // Рисуем видение отдельно
+                // ⭐ v4.0: Прожектор с радиальным градиентом (выглядит как свет фонаря)
                 ctx.save();
-                ctx.fillStyle = `rgba(255, 50, 50, ${intensity * 0.3})`;
+                const grad = ctx.createRadialGradient(this.x, this.y, 10, this.x, this.y, visionRange);
+                if (this.target) {
+                    // Красный конус при погоне
+                    grad.addColorStop(0, `rgba(255, 60, 60, ${0.28 + alertRatio * 0.18})`);
+                    grad.addColorStop(0.6, `rgba(255, 80, 80, ${0.14 + alertRatio * 0.1})`);
+                    grad.addColorStop(1, 'rgba(255, 80, 80, 0)');
+                } else {
+                    // Жёлтый конус при патруле
+                    grad.addColorStop(0, `rgba(255, 220, 100, ${0.22 + alertRatio * 0.2})`);
+                    grad.addColorStop(0.7, `rgba(255, 220, 100, ${0.08 + alertRatio * 0.08})`);
+                    grad.addColorStop(1, 'rgba(255, 220, 100, 0)');
+                }
+                ctx.fillStyle = grad;
                 ctx.beginPath();
                 ctx.moveTo(this.x, this.y);
-                ctx.arc(this.x, this.y, CONFIG.catVisionRange, this.direction - halfAngle, this.direction + halfAngle);
+                ctx.arc(this.x, this.y, visionRange, this.direction - halfAngle, this.direction + halfAngle);
                 ctx.closePath();
                 ctx.fill();
+
+                // Тонкая обводка конуса для чёткости
+                ctx.strokeStyle = this.target ? `rgba(255, 80, 80, 0.5)` : `rgba(255, 220, 100, 0.35)`;
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
                 ctx.restore();
 
-                // Кошка ВСЕГДА полностью видна - красивый эмодзи!
-                ctx.globalAlpha = 1; // КРИТИЧНО: гарантируем 100% видимость
-                drawEmoji(ctx, this.emoji, this.x, this.y, this.radius * 2);
+                // Тень под котом
+                drawShadow(ctx, this.x, this.y, this.radius, 0.4);
+
+                // ⭐ v4.1: Анимация — idle дыхание + lunge + моргание
+                const idleBob = Math.sin(this.idlePhase) * 1.5;
+                const breatheY = 1 + Math.sin(this.idlePhase * 1.3) * 0.04;
+                const isBlinking = this.blinkDuration > 0;
+                const emoji = isBlinking ? '😑' : this.emoji;
+                const moveDir = this.vx >= 0 ? 1 : -1;
+
+                ctx.globalAlpha = 1;
+                ctx.save();
+                ctx.translate(this.x, this.y + idleBob);
+                ctx.scale(moveDir * this.lungeScale, breatheY * this.lungeScale);
+                drawEmoji(ctx, emoji, 0, 0, this.radius * 2);
                 ctx.restore();
+
+                // ⭐ v4.0: Восклицательный знак при тревоге
+                if (this.target && this.alertLevel > 50) {
+                    const bob = Math.sin(performance.now() * 0.015) * 2;
+                    ctx.font = 'bold 22px Arial';
+                    ctx.fillStyle = '#FF3D3D';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.strokeStyle = '#000';
+                    ctx.lineWidth = 3;
+                    ctx.strokeText('!', this.x, this.y - this.radius - 12 + bob);
+                    ctx.fillText('!', this.x, this.y - this.radius - 12 + bob);
+                } else if (this.lastSeenPosition && this.alertLevel > 20) {
+                    const bob = Math.sin(performance.now() * 0.01) * 1.5;
+                    ctx.font = 'bold 20px Arial';
+                    ctx.fillStyle = '#FFD93D';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.strokeStyle = '#000';
+                    ctx.lineWidth = 3;
+                    ctx.strokeText('?', this.x, this.y - this.radius - 12 + bob);
+                    ctx.fillText('?', this.x, this.y - this.radius - 12 + bob);
+                }
             }
         }
 
         class Obstacle {
-            constructor(x, y, type) {
+            constructor(x, y, type, themeObstacles) {
                 this.x = x;
                 this.y = y;
                 this.radius = CONFIG.obstacleSize;
-                const emojis = ['🪑', '🛏️', '🚪', '🪟', '📺', '🌿', '🛋️', '🏠', '🚽', '🚿', '📦', '🪴'];
+                const emojis = themeObstacles || ['🪑', '🛏️', '🚪', '🪟', '📺', '🌿', '🛋️', '🏠', '📦', '🪴', '🌵', '🎁'];
                 this.emoji = emojis[type % emojis.length];
+                // ⭐ v4.1: Лёгкое покачивание для живости
+                this.wobble = Math.random() * Math.PI * 2;
+                this.wobbleSpeed = 0.015 + Math.random() * 0.01;
+            }
+
+            update(deltaTime = 1) {
+                this.wobble += this.wobbleSpeed * deltaTime;
             }
 
             draw(ctx) {
-                ctx.globalAlpha = 1;
-                // Препятствия - рисуем эмодзи если возможно, это декоративные объекты
-                drawEmoji(ctx, this.emoji, this.x, this.y, this.radius * 2);
+                drawShadow(ctx, this.x, this.y, this.radius, 0.35);
+                const tilt = Math.sin(this.wobble) * 0.025;
+                if (tilt !== 0) {
+                    ctx.save();
+                    ctx.translate(this.x, this.y);
+                    ctx.rotate(tilt);
+                    drawEmoji(ctx, this.emoji, 0, 0, this.radius * 2);
+                    ctx.restore();
+                } else {
+                    drawEmoji(ctx, this.emoji, this.x, this.y, this.radius * 2);
+                }
             }
         }
 
         class Cheese {
-            constructor(x, y) {
+            constructor(x, y, golden = false) {
                 this.x = x;
                 this.y = y;
                 this.radius = CONFIG.cheeseSize;
-                this.emoji = '🧀';
+                this.golden = golden;
+                this.emoji = golden ? '🌟' : '🧀';
                 this.bobbing = Math.random() * Math.PI * 2;
+                this.spawnTime = performance.now();
             }
 
             update(deltaTime = 1) {
-                // ⭐ v3.6.0: deltaTime нормализует анимацию для разных частот экрана
                 this.bobbing += 0.05 * deltaTime;
             }
 
             draw(ctx) {
                 const bobOffset = Math.sin(this.bobbing) * 3;
-                // Красивый сыр эмодзи
-                drawEmoji(ctx, this.emoji, this.x, this.y + bobOffset, this.radius * 2);
+                const y = this.y + bobOffset;
+
+                // ⭐ v4.0: Сияющий эффект для золотого
+                if (this.golden) {
+                    const pulse = 0.5 + Math.sin(performance.now() * 0.008) * 0.5;
+                    ctx.save();
+                    const grad = ctx.createRadialGradient(this.x, y, 0, this.x, y, this.radius * 2.5);
+                    grad.addColorStop(0, `rgba(255, 215, 0, ${0.5 * pulse})`);
+                    grad.addColorStop(1, 'rgba(255, 215, 0, 0)');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(this.x, y, this.radius * 2.5, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+
+                drawShadow(ctx, this.x, this.y, this.radius * 0.8, 0.25);
+                drawEmoji(ctx, this.emoji, this.x, y, this.radius * 2);
             }
         }
 
@@ -1576,7 +2221,17 @@
             }
 
             draw(ctx) {
-                // Красивая норка эмодзи
+                // Мягкая подсветка чтобы норка была заметна
+                ctx.save();
+                const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.radius * 1.8);
+                grad.addColorStop(0, 'rgba(107, 203, 119, 0.35)');
+                grad.addColorStop(1, 'rgba(107, 203, 119, 0)');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius * 1.8, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+
                 drawEmoji(ctx, this.emoji, this.x, this.y, this.radius * 2);
             }
         }
@@ -1587,27 +2242,542 @@
                 this.y = y;
                 this.radius = CONFIG.cheeseSize;
                 this.emoji = '🪤';
+                this.warning = 0;
+                this.triggered = false;
+                this.triggerDelay = CONFIG.trapTriggerDelay;
             }
 
             draw(ctx) {
-                // Красивая ловушка эмодзи
-                drawEmoji(ctx, this.emoji, this.x, this.y, this.radius * 2);
+                // ⭐ v4.0: Предупреждающее мигание
+                if (this.warning > 0 && !this.triggered) {
+                    const flash = 0.5 + Math.sin(performance.now() * 0.02) * 0.5;
+                    ctx.save();
+                    ctx.fillStyle = `rgba(255, 60, 60, ${0.35 * this.warning * flash})`;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius + 18 + flash * 6, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = `rgba(255, 60, 60, ${0.7 * this.warning})`;
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
+                if (!this.triggered) {
+                    drawShadow(ctx, this.x, this.y, this.radius * 0.7, 0.3);
+                }
+                drawEmoji(ctx, this.emoji, this.x, this.y, this.radius * 2, this.triggered ? 0.45 : 1);
+            }
+        }
+
+        // ⭐ v4.0: Power-ups (бустеры)
+        const POWERUP_TYPES = [
+            { kind: 'invis',  emoji: '👻', color: '#9C27B0' },
+            { kind: 'speed',  emoji: '⚡', color: '#FFD700' },
+            { kind: 'shield', emoji: '🛡️', color: '#00BCD4' },
+            { kind: 'heal',   emoji: '❤️', color: '#F44336' },
+        ];
+
+        class Powerup {
+            constructor(x, y, kind) {
+                this.x = x;
+                this.y = y;
+                this.radius = 22;
+                const type = POWERUP_TYPES.find(t => t.kind === kind) || POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
+                this.kind = type.kind;
+                this.emoji = type.emoji;
+                this.color = type.color;
+                this.bobbing = Math.random() * Math.PI * 2;
+            }
+
+            update(deltaTime = 1) {
+                this.bobbing += 0.04 * deltaTime;
+            }
+
+            draw(ctx) {
+                const bob = Math.sin(this.bobbing) * 4;
+                const y = this.y + bob;
+
+                // Аура
+                const pulse = 0.5 + Math.sin(performance.now() * 0.006) * 0.5;
+                ctx.save();
+                const grad = ctx.createRadialGradient(this.x, y, 0, this.x, y, this.radius * 2.2);
+                grad.addColorStop(0, this.color + Math.round(pulse * 170).toString(16).padStart(2, '0'));
+                grad.addColorStop(1, this.color + '00');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(this.x, y, this.radius * 2.2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+
+                drawShadow(ctx, this.x, this.y, this.radius * 0.7, 0.3);
+                drawEmoji(ctx, this.emoji, this.x, y, this.radius * 2);
+            }
+        }
+
+        // ⭐ v4.1: БАБОЧКА — летает хаотично, отвлекает котов
+        class Butterfly {
+            constructor(x, y) {
+                this.x = x; this.y = y;
+                this.baseY = y;
+                this.radius = 14;
+                this.vx = (Math.random() - 0.5) * 1.5;
+                this.vy = (Math.random() - 0.5) * 1.5;
+                this.phase = Math.random() * Math.PI * 2;
+                this.emoji = Math.random() < 0.5 ? '🦋' : '🐛';
+                this.changeDir = 0;
+                this.wingFlap = 0;
+            }
+
+            update(gameState, deltaTime = 1) {
+                this.phase += 0.08 * deltaTime;
+                this.wingFlap += 0.4 * deltaTime;
+                this.changeDir += deltaTime;
+
+                // Периодически меняем направление
+                if (this.changeDir > 60 + Math.random() * 60) {
+                    this.vx = (Math.random() - 0.5) * 1.8;
+                    this.vy = (Math.random() - 0.5) * 1.8;
+                    this.changeDir = 0;
+                }
+
+                // Лёгкий sin-wave для плавности
+                this.x += (this.vx + Math.sin(this.phase) * 0.3) * deltaTime;
+                this.y += (this.vy + Math.cos(this.phase * 1.3) * 0.2) * deltaTime;
+
+                // Отскок от границ
+                const canvas = gameState.canvas;
+                if (this.x < 30) { this.x = 30; this.vx = Math.abs(this.vx); }
+                if (this.x > canvas.width - 30) { this.x = canvas.width - 30; this.vx = -Math.abs(this.vx); }
+                if (this.y < 30) { this.y = 30; this.vy = Math.abs(this.vy); }
+                if (this.y > canvas.height - 30) { this.y = canvas.height - 30; this.vy = -Math.abs(this.vy); }
+
+                // Отвлекаем котов без цели
+                if (!gameState.cats) return;
+                for (let i = 0; i < gameState.cats.length; i++) {
+                    const cat = gameState.cats[i];
+                    if (cat.target) continue;
+                    const distSq = getDistanceSq(this.x, this.y, cat.x, cat.y);
+                    if (distSq < 200 * 200 && Math.random() < 0.02) {
+                        cat.lastSeenPosition = { x: this.x, y: this.y };
+                        cat.alertLevel = Math.min(100, cat.alertLevel + 10);
+                    }
+                }
+            }
+
+            draw(ctx) {
+                // Лёгкая тень
+                drawShadow(ctx, this.x, this.y, this.radius * 0.5, 0.2);
+                // Взмах крыльев — сжатие по X
+                const flap = Math.abs(Math.sin(this.wingFlap));
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.scale(0.7 + flap * 0.6, 1);
+                drawEmoji(ctx, this.emoji, 0, 0, this.radius * 2);
+                ctx.restore();
+            }
+        }
+
+        // ⭐ v4.1: ЛЕТАЮЩИЙ МЯЧ — катается по полу, оглушает мышь при попадании
+        class RollBall {
+            constructor(x, y) {
+                this.x = x; this.y = y;
+                this.radius = 22;
+                const ang = Math.random() * Math.PI * 2;
+                const speed = 2.5 + Math.random() * 1.2;
+                this.vx = Math.cos(ang) * speed;
+                this.vy = Math.sin(ang) * speed;
+                const balls = ['⚽','🎾','🏐','🏀','🥎'];
+                this.emoji = balls[Math.floor(Math.random() * balls.length)];
+                this.rotation = 0;
+                this.hitCooldown = 0;
+            }
+
+            update(gameState, deltaTime = 1) {
+                this.rotation += Math.hypot(this.vx, this.vy) * 0.05 * deltaTime;
+                this.hitCooldown = Math.max(0, this.hitCooldown - deltaTime);
+                this.x += this.vx * deltaTime;
+                this.y += this.vy * deltaTime;
+                // Замедление
+                this.vx *= Math.pow(0.996, deltaTime);
+                this.vy *= Math.pow(0.996, deltaTime);
+                // Перезарядка если совсем остановился
+                const speed = Math.hypot(this.vx, this.vy);
+                if (speed < 0.4) {
+                    const ang = Math.random() * Math.PI * 2;
+                    const s = 2 + Math.random() * 1.2;
+                    this.vx = Math.cos(ang) * s;
+                    this.vy = Math.sin(ang) * s;
+                }
+
+                // Отскок от границ
+                const canvas = gameState.canvas;
+                if (this.x - this.radius < 20) { this.x = this.radius + 20; this.vx = Math.abs(this.vx); }
+                if (this.x + this.radius > canvas.width - 20) { this.x = canvas.width - this.radius - 20; this.vx = -Math.abs(this.vx); }
+                if (this.y - this.radius < 20) { this.y = this.radius + 20; this.vy = Math.abs(this.vy); }
+                if (this.y + this.radius > canvas.height - 20) { this.y = canvas.height - this.radius - 20; this.vy = -Math.abs(this.vy); }
+
+                // Отскок от препятствий
+                for (let i = 0; i < gameState.obstacles.length; i++) {
+                    const obs = gameState.obstacles[i];
+                    const dx = this.x - obs.x, dy = this.y - obs.y;
+                    const minDist = this.radius + obs.radius;
+                    if (dx * dx + dy * dy < minDist * minDist) {
+                        const d = Math.hypot(dx, dy) || 1;
+                        const nx = dx / d, ny = dy / d;
+                        // Отодвигаем
+                        this.x = obs.x + nx * (minDist + 0.5);
+                        this.y = obs.y + ny * (minDist + 0.5);
+                        // Отражаем
+                        const dot = this.vx * nx + this.vy * ny;
+                        this.vx -= 2 * dot * nx;
+                        this.vy -= 2 * dot * ny;
+                    }
+                }
+
+                // Удар по мышам
+                if (this.hitCooldown <= 0) {
+                    for (let i = 0; i < gameState.mice.length; i++) {
+                        const m = gameState.mice[i];
+                        if (!m.alive || m.inBurrow) continue;
+                        const dx = m.x - this.x, dy = m.y - this.y;
+                        const minDist = this.radius + m.radius;
+                        if (dx * dx + dy * dy < minDist * minDist) {
+                            if (m.powerShield > 0) {
+                                m.powerShield = 0;
+                                addScorePopup(m.x, m.y - 20, 'ЩИТ!', '#00BCD4');
+                            } else {
+                                m.hp = Math.max(0, m.hp - 10);
+                                m.damageFlash = 20;
+                                if (m.hp <= 0) {
+                                    m.alive = false;
+                                    for (let j = 0; j < 8; j++) gameState.particles.get(m.x, m.y, '💔');
+                                }
+                            }
+                            // Отскок от мыши
+                            const d = Math.hypot(dx, dy) || 1;
+                            this.vx = -dx / d * 3;
+                            this.vy = -dy / d * 3;
+                            m.vx += dx / d * 6;
+                            m.vy += dy / d * 6;
+                            addShake(8);
+                            this.hitCooldown = 30;
+                        }
+                    }
+                }
+            }
+
+            draw(ctx) {
+                drawShadow(ctx, this.x, this.y, this.radius * 0.8, 0.45);
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation);
+                drawEmoji(ctx, this.emoji, 0, 0, this.radius * 2);
+                ctx.restore();
+            }
+        }
+
+        // ⭐ v4.1: AMBIENT — фоновые частицы (пыль, листья, искры) по теме
+        const ambientParticles = [];
+        function spawnAmbientParticles(canvas, theme) {
+            ambientParticles.length = 0;
+            const count = 28;
+            for (let i = 0; i < count; i++) {
+                ambientParticles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    vx: (Math.random() - 0.5) * 0.3,
+                    vy: 0.15 + Math.random() * 0.35,
+                    size: 8 + Math.random() * 10,
+                    emoji: theme.ambient || '·',
+                    color: theme.ambientColor || 'rgba(255,255,255,0.3)',
+                    phase: Math.random() * Math.PI * 2,
+                    rotSpeed: (Math.random() - 0.5) * 0.03,
+                    rot: 0,
+                    alpha: 0.2 + Math.random() * 0.4
+                });
+            }
+        }
+        function updateAmbientParticles(canvas, deltaTime) {
+            for (let i = 0; i < ambientParticles.length; i++) {
+                const p = ambientParticles[i];
+                p.phase += 0.02 * deltaTime;
+                p.rot += p.rotSpeed * deltaTime;
+                p.x += (p.vx + Math.sin(p.phase) * 0.2) * deltaTime;
+                p.y += p.vy * deltaTime;
+                if (p.y > canvas.height + 20) {
+                    p.y = -20;
+                    p.x = Math.random() * canvas.width;
+                }
+                if (p.x < -20) p.x = canvas.width + 20;
+                if (p.x > canvas.width + 20) p.x = -20;
+            }
+        }
+        function drawAmbientParticles(ctx) {
+            ctx.save();
+            for (let i = 0; i < ambientParticles.length; i++) {
+                const p = ambientParticles[i];
+                ctx.globalAlpha = p.alpha;
+                if (p.emoji === '·') {
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 1.2, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    if (p.rot !== 0) {
+                        ctx.translate(p.x, p.y);
+                        ctx.rotate(p.rot);
+                        drawEmoji(ctx, p.emoji, 0, 0, p.size);
+                        ctx.rotate(-p.rot);
+                        ctx.translate(-p.x, -p.y);
+                    } else {
+                        drawEmoji(ctx, p.emoji, p.x, p.y, p.size);
+                    }
+                }
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
+        }
+
+        // ⭐ v4.1: KUDOS — поощрительные сообщения ("Близко!", "Круто!") в центре экрана
+        const kudosQueue = [];
+        const KUDOS_TEXTS = {
+            closeCall: ['ПРОСКОЧИЛ!', 'ЧУТЬ-ЧУТЬ!', 'БЛИЗКО!', 'НА ВОЛОСОК!'],
+            combo3: ['КОМБО ×3!', 'В УДАРЕ!', 'РАЗГОН!'],
+            combo5: ['КОМБО ×5! 🔥', 'НЕОСТАНОВИМ!', 'МЫШИНЫЙ ШТОРМ!'],
+            golden: ['ЗОЛОТО! 🌟', 'ДЖЕКПОТ!', 'БОНАНЗА!'],
+            shieldSave: ['ЩИТ СПАС!', 'НЕУЯЗВИМ!'],
+            levelWin: ['УРОВЕНЬ ПРОЙДЕН!', 'МОЛОДЕЦ!', 'ТЫ ЛУЧШИЙ!'],
+        };
+        function addKudos(type) {
+            const arr = KUDOS_TEXTS[type];
+            if (!arr) return;
+            const text = arr[Math.floor(Math.random() * arr.length)];
+            kudosQueue.push({ text, life: 1, type });
+            if (kudosQueue.length > 3) kudosQueue.shift();
+        }
+        function updateKudos(deltaTime) {
+            for (let i = kudosQueue.length - 1; i >= 0; i--) {
+                kudosQueue[i].life -= 0.012 * deltaTime;
+                if (kudosQueue[i].life <= 0) kudosQueue.splice(i, 1);
+            }
+        }
+        function drawKudos(ctx, canvas) {
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            for (let i = 0; i < kudosQueue.length; i++) {
+                const k = kudosQueue[i];
+                const easeIn = 1 - Math.pow(1 - Math.min(1, (1 - k.life) * 4), 3);
+                const scale = 0.4 + easeIn * 0.8 + Math.sin(k.life * Math.PI) * 0.1;
+                const size = Math.round(42 * scale);
+                ctx.globalAlpha = Math.min(1, k.life * 2.5);
+                ctx.font = `900 ${size}px Arial, sans-serif`;
+                const y = canvas.height * 0.28 + i * 60;
+                ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                ctx.fillText(k.text, canvas.width / 2 + 3, y + 3);
+                const color = k.type === 'golden' ? '#FFD700'
+                            : k.type === 'combo5' ? '#FF6B6B'
+                            : k.type === 'shieldSave' ? '#00BCD4'
+                            : '#FFE66D';
+                ctx.fillStyle = color;
+                ctx.fillText(k.text, canvas.width / 2, y);
+            }
+            ctx.globalAlpha = 1;
+            ctx.restore();
+        }
+
+        // ⭐ v4.1: LEVEL INTRO — экран-баннер при начале уровня
+        const levelIntro = { active: false, time: 0, duration: 110 };
+        function startLevelIntro() {
+            levelIntro.active = true;
+            levelIntro.time = 0;
+        }
+        function updateLevelIntro(deltaTime) {
+            if (!levelIntro.active) return;
+            levelIntro.time += deltaTime;
+            if (levelIntro.time >= levelIntro.duration) {
+                levelIntro.active = false;
+            }
+        }
+        function drawLevelIntro(ctx, canvas) {
+            if (!levelIntro.active) return;
+            const t = levelIntro.time / levelIntro.duration; // 0..1
+            const theme = getTheme(gameState.currentLevel);
+            // Слайд-ин левой полосы
+            const slideIn = Math.min(1, t * 3);
+            const slideOut = Math.max(0, (t - 0.7) * 3.3);
+            const slide = slideIn * (1 - slideOut);
+            const bandH = canvas.height * 0.35;
+
+            ctx.save();
+            ctx.globalAlpha = slide * 0.92;
+            // Верхняя полоса
+            ctx.fillStyle = 'rgba(0,0,0,0.85)';
+            ctx.fillRect(0, canvas.height / 2 - bandH / 2, canvas.width, bandH);
+            // Акцентная линия
+            ctx.fillStyle = theme.accent;
+            ctx.fillRect(0, canvas.height / 2 - bandH / 2, canvas.width, 4);
+            ctx.fillRect(0, canvas.height / 2 + bandH / 2 - 4, canvas.width, 4);
+            ctx.restore();
+
+            // Текст
+            ctx.save();
+            ctx.globalAlpha = slide;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const xOffset = (1 - slideIn) * 200 - slideOut * 200;
+            const cx = canvas.width / 2 + xOffset;
+            const cy = canvas.height / 2;
+
+            ctx.font = '900 28px Arial, sans-serif';
+            ctx.fillStyle = theme.accent;
+            ctx.fillText(`УРОВЕНЬ ${gameState.currentLevel}`, cx, cy - 46);
+
+            ctx.font = '900 58px Arial, sans-serif';
+            ctx.fillStyle = '#fff';
+            ctx.shadowColor = theme.accent;
+            ctx.shadowBlur = 20;
+            ctx.fillText(theme.name, cx, cy);
+            ctx.shadowBlur = 0;
+
+            ctx.font = '18px Arial, sans-serif';
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            ctx.fillText(theme.subtitle, cx, cy + 50);
+            ctx.restore();
+        }
+
+        // ⭐ v4.1: MINI-MAP — маленькая схема уровня в углу
+        function drawMinimap(ctx, canvas) {
+            const size = 140;
+            const margin = 16;
+            const mapX = margin;
+            const mapY = margin + 50;  // ниже HUD (combo)
+            const scaleX = size / canvas.width;
+            const scaleY = size / canvas.height;
+
+            ctx.save();
+            // Фон
+            ctx.fillStyle = 'rgba(0,0,0,0.55)';
+            ctx.fillRect(mapX, mapY, size, size * (canvas.height / canvas.width));
+            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(mapX, mapY, size, size * (canvas.height / canvas.width));
+
+            // Препятствия — едва заметные
+            ctx.fillStyle = 'rgba(150,150,170,0.4)';
+            for (let i = 0; i < gameState.obstacles.length; i++) {
+                const o = gameState.obstacles[i];
+                ctx.fillRect(mapX + o.x * scaleX - 1, mapY + o.y * scaleY - 1, 2, 2);
+            }
+            // Сыр
+            ctx.fillStyle = '#FFD93D';
+            for (let i = 0; i < gameState.cheese.length; i++) {
+                const c = gameState.cheese[i];
+                ctx.fillRect(mapX + c.x * scaleX - 1.5, mapY + c.y * scaleY - 1.5, 3, 3);
+            }
+            // Норки
+            ctx.fillStyle = '#6BCB77';
+            for (let i = 0; i < gameState.burrows.length; i++) {
+                const b = gameState.burrows[i];
+                ctx.beginPath();
+                ctx.arc(mapX + b.x * scaleX, mapY + b.y * scaleY, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            // Ловушки
+            if (gameState.traps) {
+                ctx.fillStyle = '#FF5252';
+                for (let i = 0; i < gameState.traps.length; i++) {
+                    const t = gameState.traps[i];
+                    if (t.triggered) continue;
+                    ctx.fillRect(mapX + t.x * scaleX - 1.5, mapY + t.y * scaleY - 1.5, 3, 3);
+                }
+            }
+            // Коты
+            for (let i = 0; i < gameState.cats.length; i++) {
+                const c = gameState.cats[i];
+                ctx.fillStyle = c.target ? '#FF3D3D' : '#FF9E9E';
+                ctx.beginPath();
+                ctx.arc(mapX + c.x * scaleX, mapY + c.y * scaleY, 3.5, 0, Math.PI * 2);
+                ctx.fill();
+                // Направление взгляда
+                ctx.strokeStyle = c.target ? 'rgba(255,60,60,0.8)' : 'rgba(255,200,100,0.5)';
+                ctx.lineWidth = 1.3;
+                ctx.beginPath();
+                ctx.moveTo(mapX + c.x * scaleX, mapY + c.y * scaleY);
+                ctx.lineTo(mapX + c.x * scaleX + Math.cos(c.direction) * 10, mapY + c.y * scaleY + Math.sin(c.direction) * 10);
+                ctx.stroke();
+            }
+            // Мыши
+            for (let i = 0; i < gameState.mice.length; i++) {
+                const m = gameState.mice[i];
+                if (!m.alive) continue;
+                const isSel = i === gameState.selectedMouse;
+                ctx.fillStyle = isSel ? '#FFFFFF' : '#BEF3FF';
+                ctx.beginPath();
+                ctx.arc(mapX + m.x * scaleX, mapY + m.y * scaleY, isSel ? 4 : 3, 0, Math.PI * 2);
+                ctx.fill();
+                if (isSel) {
+                    ctx.strokeStyle = '#FFD93D';
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+                }
+            }
+
+            // Ярлычок
+            ctx.font = '10px Arial';
+            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            ctx.fillText('🗺 КАРТА', mapX + 4, mapY + 4);
+            ctx.restore();
+        }
+
+        // ⭐ v4.1: CLOSE-CALL detection
+        const closeCallState = { wasInDanger: false, dangerFrames: 0 };
+        function updateCloseCall(deltaTime) {
+            const mouse = gameState.mice[gameState.selectedMouse];
+            if (!mouse || !mouse.alive) { closeCallState.wasInDanger = false; return; }
+            let inDanger = false;
+            for (let i = 0; i < gameState.cats.length; i++) {
+                const c = gameState.cats[i];
+                if (c.target === mouse && getDistanceSq(mouse.x, mouse.y, c.x, c.y) < 80 * 80) {
+                    inDanger = true; break;
+                }
+            }
+            if (inDanger) {
+                closeCallState.wasInDanger = true;
+                closeCallState.dangerFrames += deltaTime;
+            } else if (closeCallState.wasInDanger) {
+                // Проверяем расстояние
+                let safe = true;
+                for (let i = 0; i < gameState.cats.length; i++) {
+                    const c = gameState.cats[i];
+                    if (getDistanceSq(mouse.x, mouse.y, c.x, c.y) < 180 * 180) { safe = false; break; }
+                }
+                if (safe && closeCallState.dangerFrames > 30 && mouse.hp > 0) {
+                    addKudos('closeCall');
+                }
+                closeCallState.wasInDanger = false;
+                closeCallState.dangerFrames = 0;
             }
         }
 
         // ==================== СОВЕТЫ И ПОДСКАЗКИ ====================
         const TIPS = [
-            "💡 Прячьтесь за предметы, чтобы кошки вас не видели!",
-            "🏃 Спринт издаёт больше шума - используйте его в крайнем случае!",
-            "🕳️ Норки восстанавливают здоровье - спасайтесь в них!",
-            "👂 Кошки слышат громкий шум - ходите тихо!",
-            "🧀 Собирайте сыр быстро, но осторожно - комбо даёт бонус!",
-            "⭐ Соберите весь сыр и дойдите до конца уровня!",
-            "🎯 Каждый уровень сложнее - будьте внимательнее!",
-            "🐱 Кошки видят в конусе впереди себя - обходите их сбоку!",
-            "⚡ Выносливость восстанавливается медленнее при большом шуме!",
-            "🎮 TAB переключает мышей - выбирайте стратегически!",
-            "🕹️ PS4 контроллер поддерживается! Left Stick = движение, кнопки = действия"
+            "💡 Прячьтесь за предметы — кошки не видят сквозь них!",
+            "🏃 Спринт издаёт больше шума — используйте в крайнем случае!",
+            "🕳️ Норки восстанавливают здоровье — спасайтесь в них!",
+            "👂 Кошки слышат громкий шум — ходите тихо!",
+            "🧀 Собирайте сыр быстро — комбо увеличивает очки до ×5!",
+            "🌟 Золотой сыр даёт ускорение и много очков!",
+            "👻 Бустер невидимости — кошки вас не заметят!",
+            "🛡️ Щит блокирует один удар или ловушку!",
+            "🪤 Ловушки мигают красным когда вы рядом — успейте отбежать!",
+            "🐱 Кошки видят в конусе — обходите их сбоку или со спины!",
+            "❗ Восклицательный знак над котом — вас заметили, бегите!",
+            "❓ Вопросительный знак — кот ищет вас, замрите за укрытием!",
+            "🎮 TAB переключает мышей — выбирайте стратегически!",
+            "🕹️ Gamepad поддерживается: Left Stick = движение, кнопки = действия"
         ];
 
         let currentTip = 0;
@@ -1851,6 +3021,7 @@
             particles: null,
             burrows: [],
             traps: [],
+            powerups: [],       // ⭐ v4.0
             canvas: null,
             ctx: null,
             selectedMouse: 0,
@@ -1861,7 +3032,10 @@
             audioContext: null,
             grid: null,
             fps: 60,
-            // ⭐ v3.6.0: Кэш DOM элементов (инициализируется один раз, используется 60х/сек)
+            // ⭐ v4.0: Combo system
+            comboCount: 0,
+            comboTimer: 0,
+            // ⭐ v3.6.0: Кэш DOM элементов
             domCache: {
                 miceCount: null,
                 miceHP: null,
@@ -1919,55 +3093,21 @@
                 if (inputMobile.keys[key]) merged[key] = true;
             }
 
-            // ⭐ v3.7.4: КРИТИЧЕСКИЙ FIX - обновляем input.keys БЕЗ замены ссылки (важно для стабильности)
-            // Очищаем старые ключи
+            // Обновляем input.keys БЕЗ замены ссылки (стабильность ссылок)
             for (let key in input.keys) {
-                if (!(key in merged)) {
-                    input.keys[key] = false;
-                }
+                if (!(key in merged)) input.keys[key] = false;
             }
-            // Добавляем новые ключи
-            for (let key in merged) {
-                input.keys[key] = merged[key];
-            }
+            for (let key in merged) input.keys[key] = merged[key];
 
-            // ⭐ v3.7.4: Debug WASD input
-            if (input.keys['w'] || input.keys['a'] || input.keys['s'] || input.keys['d']) {
-                console.log(`🎮 getMergedInput: WASD = ${JSON.stringify({w:input.keys['w'],a:input.keys['a'],s:input.keys['s'],d:input.keys['d']})}`);
-            }
-
-            return input;  // Возвращаем в прежнем формате
+            return input;
         }
 
         // ⭐ ФУНКЦИЯ БЕЗОПАСНОЙ ОЧИСТКИ - вместо input.keys = {}
         function clearAllInput() {
-            const hadInput = Object.keys(inputDesktop.keys).length > 0 ||
-                           Object.keys(inputGamepad.keys).length > 0 ||
-                           Object.keys(inputMobile.keys).length > 0;
-            if (hadInput) {
-                console.log('🧹 clearAllInput called, clearing state:', {
-                    desktop: Object.keys(inputDesktop.keys).filter(k => inputDesktop.keys[k]),
-                    gamepad: Object.keys(inputGamepad.keys).filter(k => inputGamepad.keys[k]),
-                    mobile: Object.keys(inputMobile.keys).filter(k => inputMobile.keys[k])
-                });
-            }
-
-            // Очищаем все ключи БЕЗ создания нового объекта (важно для ссылок)
-            for (let key in inputDesktop.keys) {
-                inputDesktop.keys[key] = false;
-            }
-            for (let key in inputGamepad.keys) {
-                inputGamepad.keys[key] = false;
-            }
-            for (let key in inputMobile.keys) {
-                inputMobile.keys[key] = false;
-            }
-
-            // ⭐ v3.7.4: КРИТИЧЕСКИЙ FIX - очищаем и глобальный input.keys!
-            // Иначе старые ключи остаются и конфликтуют с новыми
-            for (let key in input.keys) {
-                input.keys[key] = false;
-            }
+            for (let key in inputDesktop.keys) inputDesktop.keys[key] = false;
+            for (let key in inputGamepad.keys) inputGamepad.keys[key] = false;
+            for (let key in inputMobile.keys) inputMobile.keys[key] = false;
+            for (let key in input.keys) input.keys[key] = false;
         }
 
         let fpsFrames = 0, lastFpsTime = 0;
@@ -2258,77 +3398,51 @@
 
         function playSound(type) {
             if (!audioEnabled) return;
-
             const ctx = gameState.audioContext;
-            if (!ctx) {
-                console.log(`🔊 AudioContext not ready yet (${type})`);
-                return;
-            }
-
-            // ⭐ v3.6.0: Если context suspended, не пытаемся играть
-            if (ctx.state === 'suspended') {
-                console.log(`⚠️ AudioContext suspended, skipping sound (${type})`);
-                return;
-            }
-
-            if (ctx.state !== 'running') {
-                console.log(`⚠️ AudioContext state: ${ctx.state}, skipping sound (${type})`);
-                return;
-            }
-
-            // ⭐ v3.6.0: Детальное логирование для Safari дебага
-            console.log(`🎵 [${type}] ctx.state=${ctx.state}, sampleRate=${ctx.sampleRate}, currentTime=${ctx.currentTime}`);
-
+            if (!ctx || ctx.state !== 'running') return;
             try {
-                // ⭐ v3.6.0: Вызов функции из SOUND_GENERATORS вместо switch-statement
                 const generator = SOUND_GENERATORS[type];
-                if (generator) {
-                    generator(ctx);
-                } else {
-                    console.warn(`⚠️ Unknown sound type: ${type}`);
-                }
+                if (generator) generator(ctx);
             } catch (e) {
-                // ⭐ v3.6.0: Log audio errors for debugging Safari issues
-                console.error(`❌ Audio error (${type}):`, e.message);
+                if (DEBUG) console.error(`Audio error (${type}):`, e.message);
             }
         }
 
         // ==================== ИНИЦИАЛИЗАЦИЯ ====================
         function initGame() {
-            console.log(`📍 initGame() - Level ${gameState.currentLevel}`);
+            dlog(`initGame() - Level ${gameState.currentLevel}`);
             try {
-                // Сброс счетчика безопасности
                 gameLoopSafetyCounter = 0;
 
                 gameState.canvas = DOM.gameCanvas;
                 if (!gameState.canvas) throw new Error('Canvas not found!');
-                console.log('✅ Canvas найден');
 
                 gameState.ctx = gameState.canvas.getContext('2d');
                 if (!gameState.ctx) throw new Error('Canvas context failed!');
-                console.log('✅ Context инициализирован');
 
                 const levelConfig = getLevelConfig(gameState.currentLevel);
-                console.log(`✅ Level config загружена: ${levelConfig.mice}м, ${levelConfig.cats}к, ${levelConfig.cheese}ч`);
 
-                // Responsive canvas sizing - use optimal size but respect level requirements
                 const optimalSize = getOptimalCanvasSize();
                 const canvasWidth = Math.min(levelConfig.roomWidth, optimalSize.width);
                 const canvasHeight = Math.min(levelConfig.roomHeight, optimalSize.height);
 
                 gameState.canvas.width = canvasWidth;
                 gameState.canvas.height = canvasHeight;
-                console.log(`✅ Canvas размер: ${canvasWidth}x${canvasHeight}`);
-                console.log(`📱 Window размер: ${window.innerWidth}x${window.innerHeight}`);
-                console.log(`📐 Device pixel ratio: ${devicePixelRatio}x`);
 
                 gameState.grid = new SpatialGrid(levelConfig.roomWidth, levelConfig.roomHeight, 100);
             gameState.particles = new ParticlePool(500);
 
-            gameState.backgroundGradient = gameState.ctx.createLinearGradient(0, 0, gameState.canvas.width, gameState.canvas.height);
-            gameState.backgroundGradient.addColorStop(0, '#FFE66D');
-            gameState.backgroundGradient.addColorStop(0.5, '#F4F4F4');
-            gameState.backgroundGradient.addColorStop(1, '#A8E6CF');
+            // ⭐ v4.1: Фон по теме уровня
+            const theme = levelConfig.theme || getTheme(gameState.currentLevel);
+            gameState.backgroundGradient = gameState.ctx.createRadialGradient(
+                gameState.canvas.width / 2, gameState.canvas.height / 2, 0,
+                gameState.canvas.width / 2, gameState.canvas.height / 2, Math.max(gameState.canvas.width, gameState.canvas.height) * 0.7
+            );
+            gameState.backgroundGradient.addColorStop(0, theme.bgInner);
+            gameState.backgroundGradient.addColorStop(1, theme.bgOuter);
+
+            // Кеш паттерна пола
+            gameState.floorPattern = createFloorPattern(gameState.ctx);
 
             gameState.mice = [];
             gameState.cats = [];
@@ -2336,10 +3450,25 @@
             gameState.obstacles = [];
             gameState.burrows = [];
             gameState.traps = [];
+            gameState.powerups = [];
+            gameState.butterflies = [];
+            gameState.rollBalls = [];
+            gameState.theme = levelConfig.theme;
             gameState.collectedCheese = 0;
             gameState.allCheese = levelConfig.cheese;
             gameState.selectedMouse = 0;
             gameState.globalNoise = 0;
+            gameState.comboCount = 0;
+            gameState.comboTimer = 0;
+            scorePopups.length = 0;
+            shakeState.magnitude = 0;
+            kudosQueue.length = 0;
+            closeCallState.wasInDanger = false;
+            closeCallState.dangerFrames = 0;
+            // ⭐ v4.1: Ambient particles по теме
+            spawnAmbientParticles(gameState.canvas, levelConfig.theme);
+            // Level intro banner
+            startLevelIntro();
 
             // Препятствия - с лимитом попыток для защиты от зависания
             for (let i = 0; i < levelConfig.obstacles; i++) {
@@ -2351,7 +3480,7 @@
                     y = 100 + Math.random() * (levelConfig.roomHeight - 200);
                     attempts++;
                 } while (attempts < maxAttempts && !isSpawnSafe(x, y, gameState.obstacles, 120));
-                const obs = new Obstacle(x, y, i);
+                const obs = new Obstacle(x, y, i, levelConfig.theme && levelConfig.theme.obstacles);
                 gameState.obstacles.push(obs);
                 gameState.grid.insert('obstacles', x, y, obs);
             }
@@ -2387,25 +3516,73 @@
                 gameState.mice.push(new Mouse(120 + i * 80, 120 + i * 80));
             }
 
-            // Кошки
-            for (let i = 0; i < levelConfig.cats; i++) {
-                gameState.cats.push(new Cat(
-                    levelConfig.roomWidth - 120 - i * 80,
-                    levelConfig.roomHeight - 120 - i * 80
-                ));
+            // Кошки с территориями (делим комнату на сектора)
+            const catCount = levelConfig.cats;
+            for (let i = 0; i < catCount; i++) {
+                // Сектор i из catCount — распределяем территории на сетке
+                const cols = Math.ceil(Math.sqrt(catCount));
+                const rows = Math.ceil(catCount / cols);
+                const col = i % cols;
+                const row = Math.floor(i / cols);
+                const cellW = levelConfig.roomWidth / cols;
+                const cellH = levelConfig.roomHeight / rows;
+                const territory = {
+                    x: cellW * (col + 0.5),
+                    y: cellH * (row + 0.5),
+                    radius: Math.max(cellW, cellH) * 0.5
+                };
+                // Стартовая позиция — на территории но подальше от мышей (угол)
+                const sx = territory.x + (Math.random() - 0.5) * cellW * 0.6;
+                const sy = territory.y + (Math.random() - 0.5) * cellH * 0.6;
+                gameState.cats.push(new Cat(sx, sy, territory));
             }
 
-            // Сыр
+            // Сыр (с шансом на золотой)
             for (let i = 0; i < levelConfig.cheese; i++) {
-                let x, y;
+                let x, y, attempts = 0;
                 do {
                     x = 100 + Math.random() * (levelConfig.roomWidth - 200);
                     y = 100 + Math.random() * (levelConfig.roomHeight - 200);
-                } while (!isSpawnSafe(x, y, gameState.obstacles, 100) || !isSpawnSafe(x, y, gameState.traps, 80));
-                gameState.cheese.push(new Cheese(x, y));
+                    attempts++;
+                } while (attempts < 50 && (!isSpawnSafe(x, y, gameState.obstacles, 100) || !isSpawnSafe(x, y, gameState.traps, 80)));
+                const isGolden = Math.random() < CONFIG.goldenCheeseChance;
+                gameState.cheese.push(new Cheese(x, y, isGolden));
             }
 
-                console.log(`✅ initGame завершена: ${gameState.mice.length}м, ${gameState.cats.length}к, ${gameState.cheese.length}ч`);
+            // Power-ups (бустеры)
+            const puCount = levelConfig.powerups || 0;
+            for (let i = 0; i < puCount; i++) {
+                let x, y, attempts = 0;
+                do {
+                    x = 100 + Math.random() * (levelConfig.roomWidth - 200);
+                    y = 100 + Math.random() * (levelConfig.roomHeight - 200);
+                    attempts++;
+                } while (attempts < 50 && (!isSpawnSafe(x, y, gameState.obstacles, 100) || !isSpawnSafe(x, y, gameState.traps, 100) || !isSpawnSafe(x, y, gameState.powerups, 180)));
+                const kind = POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)].kind;
+                gameState.powerups.push(new Powerup(x, y, kind));
+            }
+
+            // ⭐ v4.1: Бабочки
+            const bfCount = levelConfig.butterflies || 0;
+            for (let i = 0; i < bfCount; i++) {
+                const x = 100 + Math.random() * (levelConfig.roomWidth - 200);
+                const y = 100 + Math.random() * (levelConfig.roomHeight - 200);
+                gameState.butterflies.push(new Butterfly(x, y));
+            }
+
+            // ⭐ v4.1: Мячи (опасность на высоких уровнях)
+            const ballCount = levelConfig.rollBalls || 0;
+            for (let i = 0; i < ballCount; i++) {
+                let x, y, attempts = 0;
+                do {
+                    x = 150 + Math.random() * (levelConfig.roomWidth - 300);
+                    y = 150 + Math.random() * (levelConfig.roomHeight - 300);
+                    attempts++;
+                } while (attempts < 40 && !isSpawnSafe(x, y, gameState.obstacles, 80));
+                gameState.rollBalls.push(new RollBall(x, y));
+            }
+
+                dlog(`initGame done: ${gameState.mice.length}m, ${gameState.cats.length}c, ${gameState.cheese.length}ch`);
             } catch (e) {
                 console.error('❌ ERROR in initGame:', e.message);
                 console.error(e.stack);
@@ -2419,18 +3596,20 @@
         }
 
         // ==================== UI ====================
+        // ⭐ v4.0: Троттлинг UI — обновляем DOM каждые ~100 мс вместо 60 раз в секунду
+        let lastUIUpdate = 0;
         function updateUI() {
-            // КРИТИЧЕСКОЕ: НЕ обновляем UI если игра не запущена
             if (!gameState.isRunning) return;
+            if (gameState.mice.length === 0) return;
+
+            const now = performance.now();
+            if (now - lastUIUpdate < 100) return;
+            lastUIUpdate = now;
 
             try {
-                // Быстрое обновление только если есть мыши
-                if (gameState.mice.length === 0) return;
-
                 let aliveCount = 0;
                 let mainHP = 0;
 
-                // Быстрый цикл без излишних проверок
                 const selectedIdx = gameState.selectedMouse;
                 for (let i = 0; i < gameState.mice.length; i++) {
                     const m = gameState.mice[i];
@@ -2438,15 +3617,14 @@
                     if (i === selectedIdx) mainHP = m.hp;
                 }
 
-                // ⭐ v3.6.0: Используем кэшированные элементы (инициализированы в startGame)
                 const cache = gameState.domCache;
                 if (cache.miceCount) cache.miceCount.textContent = aliveCount;
                 if (cache.miceHP) cache.miceHP.textContent = Math.round(mainHP);
                 if (cache.cheeseCount) cache.cheeseCount.textContent = gameState.collectedCheese;
                 if (cache.totalCheese) cache.totalCheese.textContent = gameState.allCheese;
                 if (cache.levelNumber) cache.levelNumber.textContent = gameState.currentLevel;
+                if (cache.scoreDisplay) cache.scoreDisplay.textContent = gameState.score;
 
-                // Безопасная работа со stamina
                 const selectedMouse = gameState.mice[selectedIdx];
                 if (cache.stamina && selectedMouse) {
                     cache.stamina.textContent = Math.round(selectedMouse.stamina || 0);
@@ -2454,8 +3632,7 @@
 
                 if (cache.fps) cache.fps.textContent = gameState.fps || 0;
             } catch (e) {
-                console.log('updateUI ошибка (некритична):', e);
-                // Не прерываем game loop из-за ошибки в UI
+                if (DEBUG) console.log('updateUI error:', e);
             }
         }
 
@@ -2483,7 +3660,7 @@
 
             try {
                 const now = performance.now();
-                const deltaTime = Math.min((now - lastFrameTime) / 16.67, 2);  // ⭐ v3.6.0: Нормализуем к 60FPS (16.67ms per frame), макс 2x для безопасности
+                const deltaTime = Math.min((now - lastFrameTime) / 16.67, 2);
                 lastFrameTime = now;
 
                 fpsFrames++;
@@ -2493,17 +3670,30 @@
                     lastFpsTime = now;
                 }
 
-                gameState.ctx.fillStyle = gameState.backgroundGradient;
-                gameState.ctx.fillRect(0, 0, gameState.canvas.width, gameState.canvas.height);
+                const ctx = gameState.ctx;
+                const canvas = gameState.canvas;
 
-                // ⭐ v2.9.0: Update gamepad input every frame
+                // Фон (под shake — не двигается)
+                ctx.fillStyle = gameState.backgroundGradient;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                if (gameState.floorPattern) {
+                    ctx.fillStyle = gameState.floorPattern;
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                }
+                // Виньетка по краям
+                const vignette = ctx.createRadialGradient(canvas.width/2, canvas.height/2, Math.min(canvas.width, canvas.height) * 0.35, canvas.width/2, canvas.height/2, Math.max(canvas.width, canvas.height) * 0.75);
+                vignette.addColorStop(0, 'rgba(0,0,0,0)');
+                vignette.addColorStop(1, 'rgba(0,0,0,0.55)');
+                ctx.fillStyle = vignette;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // ⭐ v4.0: Screen shake применяется ТОЛЬКО к игровым сущностям
+                ctx.save();
+                applyShake(ctx);
+
                 updateGamepadInput();
-
-                // ⭐ v3.6.0: ОПТИМИЗАЦИЯ - вычисляем merged input ОДН РАЗ в gameLoop
-                // (вместо вызова для каждой мыши 8 раз за кадр)
                 const mergedInput = getMergedInput();
 
-                // ⭐ v3.6.0: ФИЧА - Переключение мыши на Tab (работает и на клавиатуре и на джойстике)
                 if (mergedInput.keys['Tab'] && gameState.mice.length > 1 && now - lastMouseSwitchTime > 300) {
                     gameState.selectedMouse = (gameState.selectedMouse + 1) % gameState.mice.length;
                     let iterations = 0;
@@ -2512,12 +3702,8 @@
                         iterations++;
                     }
                     lastMouseSwitchTime = now;
-                    console.log(`🐭 Переключение на мышь #${gameState.selectedMouse + 1}`);
                 }
 
-                // Обновления
-                // ⭐ v3.6.0: Mouse.update() получает кэшированный mergedInput
-                // ⭐ v3.6.0: Передаем deltaTime для нормализации движения
                 for (let i = gameState.mice.length - 1; i >= 0; i--) {
                     gameState.mice[i].update(gameState.grid, gameState, mergedInput, deltaTime);
                 }
@@ -2527,36 +3713,75 @@
                 for (let i = gameState.cheese.length - 1; i >= 0; i--) {
                     gameState.cheese[i].update(deltaTime);
                 }
+                if (gameState.powerups) {
+                    for (let i = gameState.powerups.length - 1; i >= 0; i--) {
+                        gameState.powerups[i].update(deltaTime);
+                    }
+                }
+                // ⭐ v4.1: Новые сущности
+                if (gameState.butterflies) {
+                    for (let i = gameState.butterflies.length - 1; i >= 0; i--) {
+                        gameState.butterflies[i].update(gameState, deltaTime);
+                    }
+                }
+                if (gameState.rollBalls) {
+                    for (let i = gameState.rollBalls.length - 1; i >= 0; i--) {
+                        gameState.rollBalls[i].update(gameState, deltaTime);
+                    }
+                }
+                for (let i = 0; i < gameState.obstacles.length; i++) {
+                    if (gameState.obstacles[i].update) gameState.obstacles[i].update(deltaTime);
+                }
                 gameState.particles.update();
+                updateScorePopups();
+                updateKudos(deltaTime);
+                updateLevelIntro(deltaTime);
+                updateCloseCall(deltaTime);
+                if (gameState.canvas) updateAmbientParticles(gameState.canvas, deltaTime);
 
-                // ⭐ v3.6.0: globalNoise также зависит от deltaTime
+                // Combo timer
+                if (gameState.comboTimer > 0) {
+                    gameState.comboTimer -= deltaTime;
+                    if (gameState.comboTimer <= 0) { gameState.comboCount = 0; }
+                }
+
                 gameState.globalNoise = Math.max(0, gameState.globalNoise - 0.8 * deltaTime);
 
-                // Отрисовка
-                for (let i = 0; i < gameState.obstacles.length; i++) {
-                    gameState.obstacles[i].draw(gameState.ctx);
-                }
-                for (let i = 0; i < gameState.burrows.length; i++) {
-                    gameState.burrows[i].draw(gameState.ctx);
-                }
-                for (let i = 0; i < gameState.traps.length; i++) {
-                    gameState.traps[i].draw(gameState.ctx);
-                }
-                for (let i = 0; i < gameState.cheese.length; i++) {
-                    gameState.cheese[i].draw(gameState.ctx);
-                }
-                for (let i = 0; i < gameState.cats.length; i++) {
-                    gameState.cats[i].draw(gameState.ctx);
-                }
-                for (let i = 0; i < gameState.mice.length; i++) {
-                    gameState.mice[i].draw(gameState.ctx);
-                }
+                // ⭐ v4.1: Ambient слой (фоновые частицы — пыль/листья)
+                drawAmbientParticles(ctx);
 
-                gameState.particles.draw(gameState.ctx);
+                // Отрисовка слоями: пол → препятствия → норки/сыр → ловушки → мыши → коты → частицы
+                for (let i = 0; i < gameState.burrows.length; i++) gameState.burrows[i].draw(ctx);
+                for (let i = 0; i < gameState.obstacles.length; i++) gameState.obstacles[i].draw(ctx);
+                for (let i = 0; i < gameState.traps.length; i++) gameState.traps[i].draw(ctx);
+                for (let i = 0; i < gameState.cheese.length; i++) gameState.cheese[i].draw(ctx);
+                if (gameState.powerups) {
+                    for (let i = 0; i < gameState.powerups.length; i++) gameState.powerups[i].draw(ctx);
+                }
+                if (gameState.rollBalls) {
+                    for (let i = 0; i < gameState.rollBalls.length; i++) gameState.rollBalls[i].draw(ctx);
+                }
+                if (gameState.butterflies) {
+                    for (let i = 0; i < gameState.butterflies.length; i++) gameState.butterflies[i].draw(ctx);
+                }
+                for (let i = 0; i < gameState.cats.length; i++) gameState.cats[i].draw(ctx);
+                for (let i = 0; i < gameState.mice.length; i++) gameState.mice[i].draw(ctx);
+                gameState.particles.draw(ctx);
 
-                // КРИТИЧЕСКАЯ ГАРАНТИЯ: globalAlpha всегда = 1 в конце кадра
-                gameState.ctx.globalAlpha = 1;
-                gameState.ctx.fillStyle = '#000';
+                // ⭐ v4.1: Stealth lighting — с высокого уровня начинается эффект
+                drawStealthLighting(ctx, canvas);
+
+                drawScorePopups(ctx);
+
+                ctx.restore(); // снимаем shake
+
+                // HUD поверх shake (не трясётся)
+                drawHUD(ctx, canvas);
+                drawMinimap(ctx, canvas);
+                drawKudos(ctx, canvas);
+                drawLevelIntro(ctx, canvas);
+
+                ctx.globalAlpha = 1;
 
                 updateUI();
 
@@ -2645,7 +3870,7 @@
                 }
 
                 if (gameState.cheese.length === 0 && gameState.allCheese > 0) {
-                    // КРИТИЧЕСКОЕ: Немедленно отключаем цикл
+                    addKudos('levelWin');
                     gameState.isRunning = false;
                     gameLoopSafetyCounter = 0;
                     playSound('victory');
@@ -3261,17 +4486,10 @@
             return key.toLowerCase();
         }
 
-        // ⭐ KEYDOWN - ПРОСТОЙ: запиши ключ в inputDesktop
+        // ⭐ KEYDOWN - простой: запиши ключ в inputDesktop
         document.addEventListener('keydown', (e) => {
             const keyName = normalizeKeyName(e.key);
-
-            // ✅ ГЛАВНОЕ: ВСЕГДА пишем в inputDesktop
             inputDesktop.keys[keyName] = true;
-
-            // ⭐ v3.7.4: Логирование для отладки WASD проблемы
-            if (['w', 'a', 's', 'd'].includes(keyName)) {
-                console.log(`⌨️ KEYDOWN ${keyName}: inputDesktop.keys =`, inputDesktop.keys, 'isRunning =', gameState.isRunning);
-            }
 
             // ⭐ ОТДЕЛЬНАЯ ЛОГИКА ДЛЯ МЕНЮ (не блокирует ввод)
             const menuScreen = DOM.menuScreen;
@@ -3332,15 +4550,9 @@
 
         // ==================== СТАРТЕР ====================
         function startGame() {
-            console.log('🎮 START GAME - Инициализация игры...');
+            dlog('🎮 START GAME');
             try {
-                // ⭐ v3.6.0: КРИТИЧЕСКИ! Очищаем input перед началом игры
                 clearAllInput();
-                console.log('✅ Input очищен');
-                console.log('🔍 После clearAllInput:', {
-                    inputDesktop: Object.keys(inputDesktop.keys),
-                    inputGlobal: Object.keys(input.keys)
-                });
 
                 // Скрываем меню и запускаем игру
                 hideAllScreens();
@@ -3359,34 +4571,20 @@
                 gameState.domCache.levelNumber = DOM.levelNumber;
                 gameState.domCache.stamina = DOM.stamina;
                 gameState.domCache.fps = DOM.fps;
+                gameState.domCache.scoreDisplay = DOM.scoreDisplay;
 
-                // ⭐ v3.6.0: Инициализируем AudioContext в user gesture context (click START GAME)
-                console.log('🔊 Initializing audio...');
-                initAudio().then(() => {
-                    console.log('🔊 Audio ready, trying sound...');
-                    playSound('button');
-                }).catch(e => {
-                    console.log('🔊 Audio init note:', e);
-                });
+                // Инициализируем AudioContext в user-gesture контексте
+                initAudio().then(() => playSound('button')).catch(() => {});
 
-                // ⭐ v2.6.0: Используем мобильный путь инициализации для мобильных устройств
                 const isMobile = isMobileDevice();
                 if (isMobile) {
-                    console.log('📱 Использую optimized mobile initialization...');
                     const success = initGameMobile();
-                    if (!success) {
-                        console.error('❌ Mobile initialization failed');
-                        throw new Error('Mobile game initialization failed');
-                    }
+                    if (!success) throw new Error('Mobile game initialization failed');
                 } else {
-                    console.log('💻 Использую desktop initialization...');
                     initGame();
-                    console.log('🎮 initGame() завершена успешно');
                 }
 
-                console.log('🎮 Вызов gameLoop()...');
                 gameLoop();
-                console.log('✅ Game started успешно! gameLoop запущен');
             } catch (e) {
                 console.error('❌ КРИТИЧЕСКАЯ ОШИБКА в startGame:');
                 console.error('Сообщение:', e.message);
